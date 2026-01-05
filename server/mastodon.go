@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/mattermost/mattermost/server/public/model"
 )
 
 // fetchMastodonStatus fetches a Mastodon status from the given instance
@@ -86,34 +88,77 @@ func stripHTML(html string) string {
 }
 
 // buildAttachment creates a Mattermost message attachment from a Mastodon status
-func buildAttachment(status *MastodonStatus, url string) map[string]interface{} {
-	attachment := map[string]interface{}{
-		"fallback":    fmt.Sprintf("Mastodon post by @%s", status.Account.Username),
-		"color":       "#6364FF", // Mastodon brand color
-		"author_name": status.Account.DisplayName,
-		"author_link": status.Account.URL,
-		"author_icon": status.Account.Avatar,
-		"title":       fmt.Sprintf("@%s", status.Account.Acct),
-		"title_link":  url,
-		"text":        stripHTML(status.Content),
-		"footer":      "Mastodon",
+func buildAttachment(status *MastodonStatus, url string, config *configuration) *model.SlackAttachment {
+	// Strip HTML from content
+	content := stripHTML(status.Content)
+
+	attachment := &model.SlackAttachment{
+		Fallback:   fmt.Sprintf("🦣 Mastodon: %s", content),
+		Color:      "#6364FF", // Mastodon brand color - distinctive purple left border
+		AuthorName: status.Account.DisplayName,
+		AuthorLink: status.Account.URL,
+		AuthorIcon: status.Account.Avatar,
+		Title:      fmt.Sprintf("@%s", status.Account.Acct),
+		TitleLink:  url,
+		Text:       content,
+		Footer:     "🦣 Mastodon Preview",
+		FooterIcon: "https://joinmastodon.org/favicon-32x32.png",
 	}
 
 	// Add first media attachment as image or thumbnail
+	var firstMediaType string
 	if len(status.MediaAttachments) > 0 {
 		media := status.MediaAttachments[0]
+		firstMediaType = media.Type
 		if media.Type == "image" || media.Type == "gifv" {
-			attachment["image_url"] = media.URL
+			attachment.ImageURL = media.URL
 		} else if media.Type == "video" && media.PreviewURL != "" {
-			attachment["thumb_url"] = media.PreviewURL
+			attachment.ThumbURL = media.PreviewURL
 		}
 	}
 
-	// Add engagement metrics as fields
-	fields := []map[string]interface{}{
-		{"title": "Replies", "value": fmt.Sprintf("%d", status.RepliesCount), "short": true},
-		{"title": "Boosts", "value": fmt.Sprintf("%d", status.ReblogsCount), "short": true},
-		{"title": "Favorites", "value": fmt.Sprintf("%d", status.FavouritesCount), "short": true},
+	// Add engagement metrics as fields (if enabled)
+	fields := []*model.SlackAttachmentField{}
+
+	// Add video link field if first attachment is a video
+	if firstMediaType == "video" && len(status.MediaAttachments) > 0 {
+		media := status.MediaAttachments[0]
+		fields = append(fields, &model.SlackAttachmentField{
+			Title: "🎬 Video",
+			Value: fmt.Sprintf("[Watch video](%s)", media.URL),
+			Short: false,
+		})
+	}
+
+	// Check if engagement metrics should be shown (default to true if not configured)
+	showEngagement := true
+	if config != nil && config.ShowEngagementMetrics != nil {
+		showEngagement = *config.ShowEngagementMetrics
+	}
+
+	if showEngagement {
+		fields = append(fields,
+			&model.SlackAttachmentField{Title: "Replies", Value: fmt.Sprintf("%d", status.RepliesCount), Short: true},
+			&model.SlackAttachmentField{Title: "Boosts", Value: fmt.Sprintf("%d", status.ReblogsCount), Short: true},
+			&model.SlackAttachmentField{Title: "Favorites", Value: fmt.Sprintf("%d", status.FavouritesCount), Short: true},
+		)
+	}
+
+	// If there are multiple media attachments, add links to all of them
+	if len(status.MediaAttachments) > 1 {
+		var mediaLinks []string
+		for i, media := range status.MediaAttachments {
+			mediaType := media.Type
+			if mediaType == "" {
+				mediaType = "media"
+			}
+			mediaLinks = append(mediaLinks, fmt.Sprintf("[%s %d/%d](%s)", mediaType, i+1, len(status.MediaAttachments), media.URL))
+		}
+		fields = append(fields, &model.SlackAttachmentField{
+			Title: fmt.Sprintf("📎 %d Attachments", len(status.MediaAttachments)),
+			Value: strings.Join(mediaLinks, " • "),
+			Short: false,
+		})
 	}
 
 	// Add poll information if present
@@ -122,14 +167,14 @@ func buildAttachment(status *MastodonStatus, url string) map[string]interface{} 
 		if status.Poll.Expired {
 			pollText += " (closed)"
 		}
-		fields = append(fields, map[string]interface{}{
-			"title": "Poll",
-			"value": pollText,
-			"short": false,
+		fields = append(fields, &model.SlackAttachmentField{
+			Title: "Poll",
+			Value: pollText,
+			Short: false,
 		})
 	}
 
-	attachment["fields"] = fields
+	attachment.Fields = fields
 
 	return attachment
 }

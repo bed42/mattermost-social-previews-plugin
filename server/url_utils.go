@@ -40,16 +40,6 @@ func extractMastodonURLs(text string) []string {
 	return urls
 }
 
-// isMastodonURL checks if a URL matches Mastodon URL patterns
-func isMastodonURL(url string) bool {
-	for _, pattern := range mastodonPatterns {
-		if pattern.MatchString(url) {
-			return true
-		}
-	}
-	return false
-}
-
 // parseMastodonURL extracts the instance URL and status ID from a Mastodon URL
 // Returns: (instanceURL, statusID, ok)
 func parseMastodonURL(url string) (string, string, bool) {

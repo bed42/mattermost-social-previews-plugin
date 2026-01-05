@@ -19,8 +19,16 @@
         "bundle_path": "webapp/dist/main.js"
     },
     "settings_schema": {
-        "header": "",
+        "header": "Configure how Mastodon previews are displayed in your Mattermost instance.",
         "footer": "",
-        "settings": []
+        "settings": [
+            {
+                "key": "show_engagement_metrics",
+                "display_name": "Show Engagement Metrics",
+                "type": "bool",
+                "help_text": "Display reply count, boosts, and favorites in Mastodon previews. Disable to show only the post content and media.",
+                "default": true
+            }
+        ]
     }
 }

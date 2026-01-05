@@ -4,24 +4,24 @@ import "time"
 
 // MastodonStatus represents a status (post/toot) from the Mastodon API
 type MastodonStatus struct {
-	ID               string              `json:"id"`
-	CreatedAt        time.Time           `json:"created_at"`
-	Content          string              `json:"content"`
-	SpoilerText      string              `json:"spoiler_text"`
-	Visibility       string              `json:"visibility"`
-	Sensitive        bool                `json:"sensitive"`
-	URL              string              `json:"url"`
-	RepliesCount     int                 `json:"replies_count"`
-	ReblogsCount     int                 `json:"reblogs_count"`
-	FavouritesCount  int                 `json:"favourites_count"`
-	Account          MastodonAccount     `json:"account"`
-	MediaAttachments []MastodonMedia     `json:"media_attachments"`
-	Mentions         []MastodonMention   `json:"mentions"`
-	Tags             []MastodonTag       `json:"tags"`
-	Card             *MastodonCard       `json:"card"`
-	Poll             *MastodonPoll       `json:"poll"`
-	Reblog           *MastodonStatus     `json:"reblog"`
-	Language         string              `json:"language"`
+	ID               string            `json:"id"`
+	CreatedAt        time.Time         `json:"created_at"`
+	Content          string            `json:"content"`
+	SpoilerText      string            `json:"spoiler_text"`
+	Visibility       string            `json:"visibility"`
+	Sensitive        bool              `json:"sensitive"`
+	URL              string            `json:"url"`
+	RepliesCount     int               `json:"replies_count"`
+	ReblogsCount     int               `json:"reblogs_count"`
+	FavouritesCount  int               `json:"favourites_count"` //nolint:misspell // Mastodon API uses British spelling
+	Account          MastodonAccount   `json:"account"`
+	MediaAttachments []MastodonMedia   `json:"media_attachments"`
+	Mentions         []MastodonMention `json:"mentions"`
+	Tags             []MastodonTag     `json:"tags"`
+	Card             *MastodonCard     `json:"card"`
+	Poll             *MastodonPoll     `json:"poll"`
+	Reblog           *MastodonStatus   `json:"reblog"`
+	Language         string            `json:"language"`
 }
 
 // MastodonAccount represents a Mastodon user account
