@@ -174,6 +174,28 @@ func buildAttachment(status *MastodonStatus, url string, config *configuration) 
 		})
 	}
 
+	// Add link preview card if present
+	if status.Card != nil && status.Card.URL != "" {
+		cardValue := fmt.Sprintf("**[%s](%s)**", status.Card.Title, status.Card.URL)
+		if status.Card.Description != "" {
+			desc := status.Card.Description
+			if len(desc) > 200 {
+				desc = desc[:200] + "..."
+			}
+			cardValue += "\n" + desc
+		}
+		fields = append(fields, &model.SlackAttachmentField{
+			Title: "🔗 Link Preview",
+			Value: cardValue,
+			Short: false,
+		})
+
+		// Use card image if no media attachment already set the image
+		if status.Card.Image != "" && attachment.ImageURL == "" {
+			attachment.ImageURL = status.Card.Image
+		}
+	}
+
 	attachment.Fields = fields
 
 	return attachment
