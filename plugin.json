@@ -1,9 +1,9 @@
 {
-    "id": "mastodon-preview",
-    "name": "Mastodon Preview",
-    "description": "Rich preview for Mastodon status URLs - works on web, desktop, and mobile clients",
-    "homepage_url": "https://github.com/yourusername/mastodon-mattermost-plugin",
-    "support_url": "https://github.com/yourusername/mastodon-mattermost-plugin/issues",
+    "id": "social-previews",
+    "name": "Social Previews",
+    "description": "Rich previews for social media URLs (Mastodon, Bluesky, Twitter/X, Threads, TikTok, Instagram) - works on web, desktop, and mobile clients",
+    "homepage_url": "https://github.com/bed/mattermost-social-previews-plugin",
+    "support_url": "https://github.com/bed/mattermost-social-previews-plugin/issues",
     "icon_path": "assets/starter-template-icon.svg",
     "min_server_version": "7.0.0",
     "server": {
@@ -19,14 +19,14 @@
         "bundle_path": "webapp/dist/main.js"
     },
     "settings_schema": {
-        "header": "Configure how Mastodon previews are displayed in your Mattermost instance.",
+        "header": "Configure how social media previews are displayed in your Mattermost instance.",
         "footer": "",
         "settings": [
             {
                 "key": "show_engagement_metrics",
                 "display_name": "Show Engagement Metrics",
                 "type": "bool",
-                "help_text": "Display reply count, boosts, and favorites in Mastodon previews. Disable to show only the post content and media.",
+                "help_text": "Display reply count, reposts/boosts, and likes/favorites in social media previews. Disable to show only the post content and media.",
                 "default": true
             }
         ]
