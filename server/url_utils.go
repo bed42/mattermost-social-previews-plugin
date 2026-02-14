@@ -15,6 +15,25 @@ var mastodonPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`https?://([^/\s]+)/@([a-zA-Z0-9_]+)@[^/\s]+/(\d+)`),
 }
 
+// Threads URL pattern: https://threads.net/@username/post/SHORTCODE or threads.com
+var threadsPattern = regexp.MustCompile(`https?://(?:www\.)?threads\.(?:net|com)/@[a-zA-Z0-9_.]+/post/[a-zA-Z0-9_-]+`)
+
+// extractThreadsURLs finds all Threads URLs in the given text
+func extractThreadsURLs(text string) []string {
+	urls := []string{}
+	seen := make(map[string]bool)
+
+	matches := threadsPattern.FindAllString(text, -1)
+	for _, match := range matches {
+		if !seen[match] {
+			urls = append(urls, match)
+			seen[match] = true
+		}
+	}
+
+	return urls
+}
+
 // Patterns for extracting instance URL and status ID
 var mastodonExtractPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^(https?://[^/]+)/@[^/]+/(\d+)`),
