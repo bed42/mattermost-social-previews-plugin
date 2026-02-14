@@ -262,7 +262,7 @@ func TestBuildTwitterAttachment(t *testing.T) {
 			},
 		}
 
-		att := buildTwitterAttachment(post, "https://x.com/testuser/status/123", nil)
+		att := buildTwitterAttachment(post, "https://x.com/testuser/status/123")
 
 		assert.Equal(t, "#000000", att.Color)
 		assert.Equal(t, "Test User", att.AuthorName)
@@ -273,14 +273,7 @@ func TestBuildTwitterAttachment(t *testing.T) {
 		assert.Equal(t, "Hello world!", att.Text)
 		assert.Equal(t, "X Preview", att.Footer)
 
-		// Engagement metrics shown by default
-		require.Len(t, att.Fields, 3)
-		assert.Equal(t, "Replies", att.Fields[0].Title)
-		assert.Equal(t, "5", att.Fields[0].Value)
-		assert.Equal(t, "Retweets", att.Fields[1].Title)
-		assert.Equal(t, "10", att.Fields[1].Value)
-		assert.Equal(t, "Likes", att.Fields[2].Title)
-		assert.Equal(t, "42", att.Fields[2].Value)
+		assert.Empty(t, att.Fields)
 	})
 
 	t.Run("tweet with images", func(t *testing.T) {
@@ -293,12 +286,12 @@ func TestBuildTwitterAttachment(t *testing.T) {
 			Author: TwitterAuthor{Name: "Photo", ScreenName: "photo"},
 		}
 
-		att := buildTwitterAttachment(post, "https://x.com/photo/status/456", nil)
+		att := buildTwitterAttachment(post, "https://x.com/photo/status/456")
 
 		assert.Equal(t, "https://pbs.twimg.com/photo1.jpg", att.ImageURL)
-		// Should have engagement (3) + images field (1)
-		require.Len(t, att.Fields, 4)
-		assert.Equal(t, "📎 2 Images", att.Fields[3].Title)
+		// Should have images field (1)
+		require.Len(t, att.Fields, 1)
+		assert.Equal(t, "📎 2 Images", att.Fields[0].Title)
 	})
 
 	t.Run("tweet with video", func(t *testing.T) {
@@ -311,24 +304,21 @@ func TestBuildTwitterAttachment(t *testing.T) {
 			Author: TwitterAuthor{Name: "Vid", ScreenName: "vid"},
 		}
 
-		att := buildTwitterAttachment(post, "https://x.com/vid/status/789", nil)
+		att := buildTwitterAttachment(post, "https://x.com/vid/status/789")
 
 		assert.Equal(t, "https://pbs.twimg.com/thumb.jpg", att.ImageURL)
-		// Should have video link (1) + engagement (3)
-		require.Len(t, att.Fields, 4)
+		// Should have video link (1)
+		require.Len(t, att.Fields, 1)
 		assert.Equal(t, "🎬 Video", att.Fields[0].Title)
 	})
 
-	t.Run("engagement metrics disabled", func(t *testing.T) {
-		showMetrics := false
-		config := &configuration{ShowEngagementMetrics: &showMetrics}
+	t.Run("post with no media has no fields", func(t *testing.T) {
 		post := &TwitterPost{
-			Text:      "No metrics",
-			LikeCount: 100,
-			Author:    TwitterAuthor{Name: "Test", ScreenName: "test"},
+			Text:   "Just text",
+			Author: TwitterAuthor{Name: "Test", ScreenName: "test"},
 		}
 
-		att := buildTwitterAttachment(post, "https://x.com/test/status/123", config)
+		att := buildTwitterAttachment(post, "https://x.com/test/status/123")
 
 		assert.Empty(t, att.Fields)
 	})

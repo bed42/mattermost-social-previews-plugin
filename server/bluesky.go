@@ -277,7 +277,7 @@ func parseBlueskyResponse(data []byte) (*BlueskyPost, error) {
 }
 
 // buildBlueskyAttachment creates a Mattermost message attachment from a Bluesky post.
-func buildBlueskyAttachment(post *BlueskyPost, originalURL string, config *configuration) *model.SlackAttachment {
+func buildBlueskyAttachment(post *BlueskyPost, originalURL string) *model.SlackAttachment {
 	attachment := &model.SlackAttachment{
 		Fallback:   fmt.Sprintf("Bluesky: %s", post.Text),
 		Color:      "#0085FF", // Bluesky brand color
@@ -310,20 +310,6 @@ func buildBlueskyAttachment(post *BlueskyPost, originalURL string, config *confi
 			Value: fmt.Sprintf("[Watch video](%s)", originalURL),
 			Short: false,
 		})
-	}
-
-	// Engagement metrics
-	showEngagement := true
-	if config != nil && config.ShowEngagementMetrics != nil {
-		showEngagement = *config.ShowEngagementMetrics
-	}
-
-	if showEngagement {
-		fields = append(fields,
-			&model.SlackAttachmentField{Title: "Replies", Value: fmt.Sprintf("%d", post.ReplyCount), Short: true},
-			&model.SlackAttachmentField{Title: "Reposts", Value: fmt.Sprintf("%d", post.RepostCount), Short: true},
-			&model.SlackAttachmentField{Title: "Likes", Value: fmt.Sprintf("%d", post.LikeCount), Short: true},
-		)
 	}
 
 	// Multiple images

@@ -313,7 +313,7 @@ func TestBuildBlueskyAttachment(t *testing.T) {
 			},
 		}
 
-		att := buildBlueskyAttachment(post, "https://bsky.app/profile/alice.bsky.social/post/3abc", nil)
+		att := buildBlueskyAttachment(post, "https://bsky.app/profile/alice.bsky.social/post/3abc")
 
 		assert.Equal(t, "#0085FF", att.Color)
 		assert.Equal(t, "Alice", att.AuthorName)
@@ -323,14 +323,7 @@ func TestBuildBlueskyAttachment(t *testing.T) {
 		assert.Equal(t, "Hello world!", att.Text)
 		assert.Equal(t, "Bluesky Preview", att.Footer)
 
-		// Engagement metrics shown by default
-		require.Len(t, att.Fields, 3)
-		assert.Equal(t, "Replies", att.Fields[0].Title)
-		assert.Equal(t, "5", att.Fields[0].Value)
-		assert.Equal(t, "Reposts", att.Fields[1].Title)
-		assert.Equal(t, "10", att.Fields[1].Value)
-		assert.Equal(t, "Likes", att.Fields[2].Title)
-		assert.Equal(t, "42", att.Fields[2].Value)
+		assert.Empty(t, att.Fields)
 	})
 
 	t.Run("post with images", func(t *testing.T) {
@@ -343,12 +336,12 @@ func TestBuildBlueskyAttachment(t *testing.T) {
 			Author: BlueskyAuthor{Handle: "photo.bsky.social", DisplayName: "Photo"},
 		}
 
-		att := buildBlueskyAttachment(post, "https://bsky.app/profile/photo.bsky.social/post/3abc", nil)
+		att := buildBlueskyAttachment(post, "https://bsky.app/profile/photo.bsky.social/post/3abc")
 
 		assert.Equal(t, "https://cdn.bsky.app/full1.jpg", att.ImageURL)
-		// Should have engagement (3) + images field (1)
-		require.Len(t, att.Fields, 4)
-		assert.Equal(t, "📎 2 Images", att.Fields[3].Title)
+		// Should have images field (1)
+		require.Len(t, att.Fields, 1)
+		assert.Equal(t, "📎 2 Images", att.Fields[0].Title)
 	})
 
 	t.Run("post with video", func(t *testing.T) {
@@ -361,11 +354,11 @@ func TestBuildBlueskyAttachment(t *testing.T) {
 			Author: BlueskyAuthor{Handle: "vid.bsky.social", DisplayName: "Vid"},
 		}
 
-		att := buildBlueskyAttachment(post, "https://bsky.app/profile/vid.bsky.social/post/3abc", nil)
+		att := buildBlueskyAttachment(post, "https://bsky.app/profile/vid.bsky.social/post/3abc")
 
 		assert.Equal(t, "https://cdn.bsky.app/video-thumb.jpg", att.ThumbURL)
-		// Should have video link (1) + engagement (3)
-		require.Len(t, att.Fields, 4)
+		// Should have video link (1)
+		require.Len(t, att.Fields, 1)
 		assert.Equal(t, "🎬 Video", att.Fields[0].Title)
 	})
 
@@ -381,26 +374,22 @@ func TestBuildBlueskyAttachment(t *testing.T) {
 			Author: BlueskyAuthor{Handle: "news.bsky.social", DisplayName: "News"},
 		}
 
-		att := buildBlueskyAttachment(post, "https://bsky.app/profile/news.bsky.social/post/3abc", nil)
+		att := buildBlueskyAttachment(post, "https://bsky.app/profile/news.bsky.social/post/3abc")
 
 		// External thumb used as image since no other image
 		assert.Equal(t, "https://example.com/thumb.jpg", att.ImageURL)
-		// Should have engagement (3) + link preview (1)
-		require.Len(t, att.Fields, 4)
-		assert.Equal(t, "🔗 Link Preview", att.Fields[3].Title)
+		// Should have link preview (1)
+		require.Len(t, att.Fields, 1)
+		assert.Equal(t, "🔗 Link Preview", att.Fields[0].Title)
 	})
 
-	t.Run("engagement metrics disabled", func(t *testing.T) {
-		showMetrics := false
-		config := &configuration{ShowEngagementMetrics: &showMetrics}
+	t.Run("post with no media has no fields", func(t *testing.T) {
 		post := &BlueskyPost{
-			Text:       "No metrics",
-			LikeCount:  100,
-			ReplyCount: 50,
-			Author:     BlueskyAuthor{Handle: "test.bsky.social", DisplayName: "Test"},
+			Text:   "Just text",
+			Author: BlueskyAuthor{Handle: "test.bsky.social", DisplayName: "Test"},
 		}
 
-		att := buildBlueskyAttachment(post, "https://bsky.app/profile/test.bsky.social/post/3abc", config)
+		att := buildBlueskyAttachment(post, "https://bsky.app/profile/test.bsky.social/post/3abc")
 
 		assert.Empty(t, att.Fields)
 	})

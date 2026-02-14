@@ -86,8 +86,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched", "url", url, "author", mastodonPost.Account.Username)
 
 		// Create message attachment
-		config := p.getConfiguration()
-		attachment := buildAttachment(mastodonPost, url, config)
+		attachment := buildAttachment(mastodonPost, url)
 		attachments = append(attachments, attachment)
 	}
 
@@ -141,8 +140,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched Bluesky post", "url", url, "author", bskyPost.Author.Handle)
 
-		config := p.getConfiguration()
-		attachment := buildBlueskyAttachment(bskyPost, url, config)
+		attachment := buildBlueskyAttachment(bskyPost, url)
 		attachments = append(attachments, attachment)
 	}
 
@@ -164,8 +162,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched Twitter/X post", "url", url, "author", tweet.Author.ScreenName)
 
-		config := p.getConfiguration()
-		attachment := buildTwitterAttachment(tweet, url, config)
+		attachment := buildTwitterAttachment(tweet, url)
 		attachments = append(attachments, attachment)
 	}
 

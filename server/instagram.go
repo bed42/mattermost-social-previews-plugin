@@ -104,6 +104,11 @@ func fetchInstagramPost(url string) (*InstagramPost, error) {
 var (
 	ogVideoRe = regexp.MustCompile(`<meta\s+(?:property|name)="og:video"\s+content="([^"]*)"`)
 	ogTypeRe  = regexp.MustCompile(`<meta\s+(?:property|name)="og:type"\s+content="([^"]*)"`)
+
+	// Matches Instagram og:description prefix like:
+	// "90K likes, 522 comments - aew on February 13, 2026: "
+	// "1,234 likes, 56 comments - user on January 1, 2025: "
+	instagramDescPrefixRe = regexp.MustCompile(`^[\d,.KMBkmb]+ likes, [\d,.KMBkmb]+ comments - .+ on \w+ \d{1,2}, \d{4}: `)
 )
 
 // parseInstagramHTML extracts OG meta tags from raw HTML.
@@ -132,13 +137,23 @@ func parseInstagramHTML(rawHTML string) *InstagramPost {
 	return post
 }
 
+// cleanInstagramDescription strips the engagement metrics and date prefix from
+// Instagram's og:description (e.g. "90K likes, 522 comments - user on Feb 13, 2026: ").
+func cleanInstagramDescription(desc string) string {
+	cleaned := instagramDescPrefixRe.ReplaceAllString(desc, "")
+	// The caption text is often wrapped in quotes after the prefix
+	cleaned = strings.TrimPrefix(cleaned, "\"")
+	cleaned = strings.TrimSuffix(cleaned, "\"")
+	return strings.TrimSpace(cleaned)
+}
+
 // buildInstagramAttachment creates a Mattermost message attachment from an Instagram post.
 func buildInstagramAttachment(post *InstagramPost, originalURL string) *model.SlackAttachment {
 	// Parse author from og:title — format varies:
 	// Photos: "Username on Instagram: \"caption text\""
 	// Reels: "Username on Instagram: \"caption text\""
 	authorName := post.Title
-	caption := post.Description
+	caption := cleanInstagramDescription(post.Description)
 
 	if idx := strings.Index(post.Title, " on Instagram"); idx > 0 {
 		authorName = post.Title[:idx]

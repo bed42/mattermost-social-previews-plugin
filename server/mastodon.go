@@ -88,7 +88,7 @@ func stripHTML(html string) string {
 }
 
 // buildAttachment creates a Mattermost message attachment from a Mastodon status
-func buildAttachment(status *MastodonStatus, url string, config *configuration) *model.SlackAttachment {
+func buildAttachment(status *MastodonStatus, url string) *model.SlackAttachment {
 	// Strip HTML from content
 	content := stripHTML(status.Content)
 
@@ -128,20 +128,6 @@ func buildAttachment(status *MastodonStatus, url string, config *configuration) 
 			Value: fmt.Sprintf("[Watch video](%s)", media.URL),
 			Short: false,
 		})
-	}
-
-	// Check if engagement metrics should be shown (default to true if not configured)
-	showEngagement := true
-	if config != nil && config.ShowEngagementMetrics != nil {
-		showEngagement = *config.ShowEngagementMetrics
-	}
-
-	if showEngagement {
-		fields = append(fields,
-			&model.SlackAttachmentField{Title: "Replies", Value: fmt.Sprintf("%d", status.RepliesCount), Short: true},
-			&model.SlackAttachmentField{Title: "Boosts", Value: fmt.Sprintf("%d", status.ReblogsCount), Short: true},
-			&model.SlackAttachmentField{Title: "Favorites", Value: fmt.Sprintf("%d", status.FavouritesCount), Short: true},
-		)
 	}
 
 	// If there are multiple media attachments, add links to all of them

@@ -22,7 +22,7 @@ func TestBuildAttachment_CardWithAll(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123", nil)
+	att := buildAttachment(status, "https://example.com/@user/123")
 
 	// Should have a link preview field
 	var linkField *struct{ Title, Value string }
@@ -51,7 +51,7 @@ func TestBuildAttachment_CardNoImage(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123", nil)
+	att := buildAttachment(status, "https://example.com/@user/123")
 
 	var found bool
 	for _, f := range att.Fields {
@@ -77,7 +77,7 @@ func TestBuildAttachment_MediaTakesPriorityOverCard(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123", nil)
+	att := buildAttachment(status, "https://example.com/@user/123")
 
 	// Media attachment image should win
 	assert.Equal(t, "https://example.com/photo.jpg", att.ImageURL)
@@ -89,7 +89,7 @@ func TestBuildAttachment_NoCard(t *testing.T) {
 		Account: MastodonAccount{Acct: "user"},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123", nil)
+	att := buildAttachment(status, "https://example.com/@user/123")
 
 	for _, f := range att.Fields {
 		assert.NotEqual(t, "🔗 Link Preview", f.Title, "should not have a Link Preview field")
@@ -111,7 +111,7 @@ func TestBuildAttachment_CardDescriptionTruncated(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123", nil)
+	att := buildAttachment(status, "https://example.com/@user/123")
 
 	for _, f := range att.Fields {
 		if f.Title == "🔗 Link Preview" {

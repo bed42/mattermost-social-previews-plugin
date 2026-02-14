@@ -21,14 +21,6 @@
     "settings_schema": {
         "header": "Configure how social media previews are displayed in your Mattermost instance.",
         "footer": "",
-        "settings": [
-            {
-                "key": "show_engagement_metrics",
-                "display_name": "Show Engagement Metrics",
-                "type": "bool",
-                "help_text": "Display reply count, reposts/boosts, and likes/favorites in social media previews. Disable to show only the post content and media.",
-                "default": true
-            }
-        ]
+        "settings": []
     }
 }

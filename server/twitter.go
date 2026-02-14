@@ -174,7 +174,7 @@ func parseTwitterResponse(data []byte) (*TwitterPost, error) {
 }
 
 // buildTwitterAttachment creates a Mattermost message attachment from a tweet.
-func buildTwitterAttachment(post *TwitterPost, originalURL string, config *configuration) *model.SlackAttachment {
+func buildTwitterAttachment(post *TwitterPost, originalURL string) *model.SlackAttachment {
 	attachment := &model.SlackAttachment{
 		Fallback:   fmt.Sprintf("X: %s", post.Text),
 		Color:      "#000000", // X brand color
@@ -211,20 +211,6 @@ func buildTwitterAttachment(post *TwitterPost, originalURL string, config *confi
 			Value: fmt.Sprintf("[Watch video](%s)", post.Video.URL),
 			Short: false,
 		})
-	}
-
-	// Engagement metrics
-	showEngagement := true
-	if config != nil && config.ShowEngagementMetrics != nil {
-		showEngagement = *config.ShowEngagementMetrics
-	}
-
-	if showEngagement {
-		fields = append(fields,
-			&model.SlackAttachmentField{Title: "Replies", Value: fmt.Sprintf("%d", post.ReplyCount), Short: true},
-			&model.SlackAttachmentField{Title: "Retweets", Value: fmt.Sprintf("%d", post.RetweetCount), Short: true},
-			&model.SlackAttachmentField{Title: "Likes", Value: fmt.Sprintf("%d", post.LikeCount), Short: true},
-		)
 	}
 
 	// Multiple images

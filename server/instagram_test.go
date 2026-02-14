@@ -186,11 +186,46 @@ func TestFetchInstagramPost(t *testing.T) {
 	})
 }
 
+func TestCleanInstagramDescription(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "with likes comments and date prefix",
+			input:    `90K likes, 522 comments - aew on February 13, 2026: "@RatedRCope got a warm welcome"`,
+			expected: "@RatedRCope got a warm welcome",
+		},
+		{
+			name:     "with numeric counts",
+			input:    `1,234 likes, 56 comments - alice on January 1, 2025: "Hello world"`,
+			expected: "Hello world",
+		},
+		{
+			name:     "no prefix",
+			input:    "Just a normal description",
+			expected: "Just a normal description",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, cleanInstagramDescription(tt.input))
+		})
+	}
+}
+
 func TestBuildInstagramAttachment(t *testing.T) {
 	t.Run("photo post", func(t *testing.T) {
 		post := &InstagramPost{
 			Title:       "Alice on Instagram: \"Beautiful sunset\"",
-			Description: "Beautiful sunset over the ocean",
+			Description: "1,234 likes, 56 comments - alice on January 1, 2025: \"Beautiful sunset over the ocean\"",
 			ImageURL:    "https://scontent.cdninstagram.com/photo.jpg",
 			URL:         "https://www.instagram.com/p/ABC123/",
 			Type:        "instapp:photo",
