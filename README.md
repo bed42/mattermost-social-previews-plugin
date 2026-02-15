@@ -1,19 +1,3 @@
-# The Problem
-
-The standard web preview Mattermost provides is usually pretty bad for Mastodon posts (attached thumbnail ) and doesn't preview anything at all for most of the other popular social media platforms. Given people share links to these around all the time, I wasn't happy with this and wanted to do better.
-
-Mattermost's default Mastodon preview:
-
-![Mattermost's default Mastodon preview](public/mastodon-mattermost.png)
-
-This plugin's Mastodon preview:
-
-![This plugin's Mastodon preview](public/mastodon-social-previews.png)
-
-Mattermost did nothing with TikTok links. This plugin's Tiktok preview:
-
-![This plugin's TikTok preview](public/tiktok-social-previews.png)
-
 # Social Previews Plugin for Mattermost
 
 > **Disclaimer:** This project was built with the guidance of a human developer and implemented primarily by [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding assistant). I didn't have time to dev all of this by hand myself, but did have enough to guide Claude to do so! If LLM-assisted development is not your thing, consider this your fair warning.
@@ -28,6 +12,22 @@ A Mattermost plugin that automatically displays rich previews for social media U
 - **Rich previews** - Shows author, avatar, content, images, web url previews and video links
 - **No configuration** - Works out of the box with default settings
 - **Privacy-friendly** - Only fetches public posts, no authentication required
+
+## The Problem
+
+The standard web preview Mattermost provides is usually pretty bad for Mastodon posts (attached thumbnail is tiny, the displayed text is limited and gets cut off and looks ugly) and doesn't preview anything at all for most of the other popular social media platforms. Given people share links to these around all the time, I wasn't happy with this and wanted to do better.
+
+Mattermost's default Mastodon preview:
+
+![Mattermost's default Mastodon preview](public/mastodon-mattermost.png)
+
+This plugin's Mastodon preview:
+
+![This plugin's Mastodon preview](public/mastodon-social-previews.png)
+
+Mattermost did nothing with TikTok links. This plugin's Tiktok preview:
+
+![This plugin's TikTok preview](public/tiktok-social-previews.png)
 
 ## How it Works
 
