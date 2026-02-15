@@ -117,7 +117,6 @@ func buildAttachment(status *MastodonStatus, url string) *model.SlackAttachment 
 		}
 	}
 
-	// Add engagement metrics as fields (if enabled)
 	fields := []*model.SlackAttachmentField{}
 
 	// Add video link field if first attachment is a video
