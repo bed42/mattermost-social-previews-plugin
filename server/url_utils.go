@@ -59,6 +59,32 @@ func extractMastodonURLs(text string) []string {
 	return urls
 }
 
+// genericURLPattern matches http/https URLs in text
+var genericURLPattern = regexp.MustCompile(`https?://[^\s<>"]+`)
+
+// extractGenericURLs finds all URLs in text that aren't in the excludeURLs list.
+func extractGenericURLs(text string, excludeURLs []string) []string {
+	excluded := make(map[string]bool, len(excludeURLs))
+	for _, u := range excludeURLs {
+		excluded[u] = true
+	}
+
+	urls := []string{}
+	seen := make(map[string]bool)
+
+	matches := genericURLPattern.FindAllString(text, -1)
+	for _, match := range matches {
+		// Strip trailing punctuation that's likely not part of the URL
+		match = strings.TrimRight(match, ".,;:!?)")
+		if !seen[match] && !excluded[match] {
+			urls = append(urls, match)
+			seen[match] = true
+		}
+	}
+
+	return urls
+}
+
 // parseMastodonURL extracts the instance URL and status ID from a Mastodon URL
 // Returns: (instanceURL, statusID, ok)
 func parseMastodonURL(url string) (string, string, bool) {

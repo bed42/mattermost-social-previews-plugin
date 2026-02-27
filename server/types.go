@@ -20,8 +20,10 @@ type MastodonStatus struct {
 	Tags             []MastodonTag     `json:"tags"`
 	Card             *MastodonCard     `json:"card"`
 	Poll             *MastodonPoll     `json:"poll"`
-	Reblog           *MastodonStatus   `json:"reblog"`
-	Language         string            `json:"language"`
+	Reblog             *MastodonStatus   `json:"reblog"`
+	InReplyToID        *string           `json:"in_reply_to_id"`
+	InReplyToAccountID *string           `json:"in_reply_to_account_id"`
+	Language           string            `json:"language"`
 }
 
 // MastodonAccount represents a Mastodon user account

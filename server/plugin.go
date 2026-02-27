@@ -67,7 +67,16 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	instagramURLs := extractInstagramURLs(post.Message)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Instagram URLs", "count", len(instagramURLs), "urls", instagramURLs)
 
-	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 {
+	// Also extract generic URLs for fallback OG previews
+	handledURLs := append(mastodonURLs, threadsURLs...)
+	handledURLs = append(handledURLs, tiktokURLs...)
+	handledURLs = append(handledURLs, blueskyURLs...)
+	handledURLs = append(handledURLs, twitterURLs...)
+	handledURLs = append(handledURLs, instagramURLs...)
+	genericURLs := extractGenericURLs(post.Message, handledURLs)
+	p.API.LogInfo("SOCIAL PREVIEWS: Extracted generic URLs", "count", len(genericURLs), "urls", genericURLs)
+
+	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(genericURLs) == 0 {
 		p.API.LogInfo("SOCIAL PREVIEWS: No preview URLs found, skipping")
 		return post, ""
 	}
@@ -85,9 +94,38 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched", "url", url, "author", mastodonPost.Account.Username)
 
-		// Create message attachment
-		attachment := buildAttachment(mastodonPost, url)
+		// If this is a reply, fetch and show the parent post first
+		replyToUsername := ""
+		if mastodonPost.InReplyToID != nil {
+			instanceURL, _, ok := parseMastodonURL(url)
+			if ok {
+				parentPost, err := p.fetchMastodonStatus(instanceURL, *mastodonPost.InReplyToID)
+				if err != nil {
+					p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch parent post", "parentID", *mastodonPost.InReplyToID, "error", err.Error())
+				} else {
+					parentAttachment := buildAttachment(parentPost, parentPost.URL, "")
+					attachments = append(attachments, parentAttachment)
+					replyToUsername = parentPost.Account.Acct
+				}
+			}
+		}
+
+		// Create message attachment first
+		attachment := buildAttachment(mastodonPost, url, replyToUsername)
 		attachments = append(attachments, attachment)
+
+		// Then check for embedded Mastodon URLs in the post content (e.g. "RE:" quote links)
+		embeddedURLs := extractMastodonURLs(mastodonPost.Content)
+		for _, embeddedURL := range embeddedURLs {
+			p.API.LogInfo("SOCIAL PREVIEWS: Fetching embedded Mastodon post", "url", embeddedURL)
+			embeddedPost, err := p.fetchMastodonPost(embeddedURL)
+			if err != nil {
+				p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch embedded post", "url", embeddedURL, "error", err.Error())
+				continue
+			}
+			embeddedAttachment := buildAttachment(embeddedPost, embeddedURL, "")
+			attachments = append(attachments, embeddedAttachment)
+		}
 	}
 
 	// Fetch data for each Threads URL
@@ -179,6 +217,22 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched Instagram post", "url", url, "title", igPost.Title)
 
 		attachment := buildInstagramAttachment(igPost, url)
+		attachments = append(attachments, attachment)
+	}
+
+	// Fallback: generic OG preview for unhandled URLs
+	for _, url := range genericURLs {
+		p.API.LogInfo("SOCIAL PREVIEWS: Fetching generic OG preview", "url", url)
+
+		preview, err := fetchOGPreview(url)
+		if err != nil {
+			p.API.LogDebug("SOCIAL PREVIEWS: No OG preview available", "url", url, "error", err.Error())
+			continue
+		}
+
+		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched OG preview", "url", url, "title", preview.Title)
+
+		attachment := buildOGAttachment(preview, url)
 		attachments = append(attachments, attachment)
 	}
 

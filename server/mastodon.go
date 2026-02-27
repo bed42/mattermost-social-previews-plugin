@@ -88,9 +88,14 @@ func stripHTML(html string) string {
 }
 
 // buildAttachment creates a Mattermost message attachment from a Mastodon status
-func buildAttachment(status *MastodonStatus, url string) *model.SlackAttachment {
+func buildAttachment(status *MastodonStatus, url string, replyToUsername string) *model.SlackAttachment {
 	// Strip HTML from content
 	content := stripHTML(status.Content)
+
+	// Add reply context if this post is a reply
+	if replyToUsername != "" {
+		content = fmt.Sprintf("*Replying to [@%s]*\n\n%s", replyToUsername, content)
+	}
 
 	attachment := &model.SlackAttachment{
 		Fallback:   fmt.Sprintf("🦣 Mastodon: %s", content),

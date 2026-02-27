@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ func TestBuildAttachment_CardWithAll(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123")
+	att := buildAttachment(status, "https://example.com/@user/123", "")
 
 	// Should have a link preview field
 	var linkField *struct{ Title, Value string }
@@ -51,7 +52,7 @@ func TestBuildAttachment_CardNoImage(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123")
+	att := buildAttachment(status, "https://example.com/@user/123", "")
 
 	var found bool
 	for _, f := range att.Fields {
@@ -77,7 +78,7 @@ func TestBuildAttachment_MediaTakesPriorityOverCard(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123")
+	att := buildAttachment(status, "https://example.com/@user/123", "")
 
 	// Media attachment image should win
 	assert.Equal(t, "https://example.com/photo.jpg", att.ImageURL)
@@ -89,7 +90,7 @@ func TestBuildAttachment_NoCard(t *testing.T) {
 		Account: MastodonAccount{Acct: "user"},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123")
+	att := buildAttachment(status, "https://example.com/@user/123", "")
 
 	for _, f := range att.Fields {
 		assert.NotEqual(t, "🔗 Link Preview", f.Title, "should not have a Link Preview field")
@@ -111,7 +112,7 @@ func TestBuildAttachment_CardDescriptionTruncated(t *testing.T) {
 		},
 	}
 
-	att := buildAttachment(status, "https://example.com/@user/123")
+	att := buildAttachment(status, "https://example.com/@user/123", "")
 
 	for _, f := range att.Fields {
 		if f.Title == "🔗 Link Preview" {
@@ -122,4 +123,51 @@ func TestBuildAttachment_CardDescriptionTruncated(t *testing.T) {
 			assert.NotContains(t, val, longDesc)
 		}
 	}
+}
+
+func TestBuildAttachment_ReplyContext(t *testing.T) {
+	status := &MastodonStatus{
+		Content: "<p>This is my reply</p>",
+		Account: MastodonAccount{
+			Acct:        "replier@instance.social",
+			DisplayName: "Replier",
+			URL:         "https://instance.social/@replier",
+		},
+	}
+
+	att := buildAttachment(status, "https://instance.social/@replier/456", "original_poster@other.social")
+
+	assert.Contains(t, att.Text, "Replying to [@original_poster@other.social]")
+	assert.Contains(t, att.Text, "This is my reply")
+}
+
+func TestBuildAttachment_NoReplyContext(t *testing.T) {
+	status := &MastodonStatus{
+		Content: "<p>Just a regular post</p>",
+		Account: MastodonAccount{Acct: "user"},
+	}
+
+	att := buildAttachment(status, "https://example.com/@user/123", "")
+
+	assert.NotContains(t, att.Text, "Replying to")
+}
+
+func TestMastodonStatus_ReplyFields(t *testing.T) {
+	jsonData := `{"id":"456","in_reply_to_id":"123","in_reply_to_account_id":"789","content":"<p>reply</p>","account":{"acct":"user"}}`
+	var status MastodonStatus
+	err := json.Unmarshal([]byte(jsonData), &status)
+	assert.NoError(t, err)
+	assert.NotNil(t, status.InReplyToID)
+	assert.Equal(t, "123", *status.InReplyToID)
+	assert.NotNil(t, status.InReplyToAccountID)
+	assert.Equal(t, "789", *status.InReplyToAccountID)
+}
+
+func TestMastodonStatus_NoReplyFields(t *testing.T) {
+	jsonData := `{"id":"456","in_reply_to_id":null,"in_reply_to_account_id":null,"content":"<p>not a reply</p>","account":{"acct":"user"}}`
+	var status MastodonStatus
+	err := json.Unmarshal([]byte(jsonData), &status)
+	assert.NoError(t, err)
+	assert.Nil(t, status.InReplyToID)
+	assert.Nil(t, status.InReplyToAccountID)
 }

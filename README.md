@@ -7,9 +7,11 @@ A Mattermost plugin that automatically displays rich previews for social media U
 ## Features
 
 - **Multi-platform** - Previews from Mastodon, Bluesky, Twitter/X, Threads, TikTok, and Instagram
+- **Generic link previews** - Fallback Open Graph previews for any URL not handled by a platform-specific handler
 - **Cross-platform** - Works on all Mattermost clients (web, desktop, mobile)
 - **Automatic detection** - Detects social media URLs and generates previews inline
 - **Rich previews** - Shows author, avatar, content, images, web url previews and video links
+- **Mastodon reply context** - Shows parent posts for Mastodon replies (both API replies and embedded quote links)
 - **No configuration** - Works out of the box with default settings
 - **Privacy-friendly** - Only fetches public posts, no authentication required
 
@@ -69,6 +71,10 @@ The plugin uses Mattermost's **message attachments** API (same approach as GitHu
 - `https://www.instagram.com/p/abc123/`
 - `https://www.instagram.com/reel/abc123/`
 
+### Generic Links (Fallback)
+
+Any other URL not matching a platform above will get a fallback preview using Open Graph meta tags (`og:title`, `og:description`, `og:image`), with `<title>` and `<meta name="description">` as secondary fallbacks. This covers news sites, blogs, and other websites that Mattermost's built-in preview may not handle well.
+
 ## Preview Content
 
 Each preview displays (where available per platform):
@@ -79,6 +85,8 @@ Each preview displays (where available per platform):
 - **Poll information** - Poll vote count and status (Mastodon, Bluesky)
 - **Link** - Click-through to the original post
 - **URL Previews** - If a post contains a link to a url, it will fetch a preview for that url too
+- **Reply context** - For Mastodon replies, shows the parent post being replied to
+- **Embedded links** - Mastodon posts containing links to other Mastodon posts (e.g. quote-style "RE:" posts) will also preview the linked post
 
 ## Installation
 
@@ -109,7 +117,7 @@ make
 
 Simply post a social media URL in any channel or direct message:
 
-```
+```txt
 Check out this post: https://mastodon.social/@someone/123456789
 Look at this: https://bsky.app/profile/someone.bsky.social/post/abc123
 ```
@@ -130,7 +138,7 @@ The plugin will automatically add a rich preview below your message.
 ### Server Component (Go)
 
 | File | Role |
-|------|------|
+| ---- | ---- |
 | [server/plugin.go](server/plugin.go) | Main plugin with `MessageWillBePosted` hook |
 | [server/mastodon.go](server/mastodon.go) | Mastodon API client and attachment builder |
 | [server/bluesky.go](server/bluesky.go) | Bluesky AT Protocol client and attachment builder |
@@ -138,6 +146,7 @@ The plugin will automatically add a rich preview below your message.
 | [server/threads.go](server/threads.go) | Threads preview via oEmbed |
 | [server/tiktok.go](server/tiktok.go) | TikTok preview via oEmbed |
 | [server/instagram.go](server/instagram.go) | Instagram preview via oEmbed |
+| [server/opengraph.go](server/opengraph.go) | Generic fallback preview via Open Graph meta tags |
 | [server/types.go](server/types.go) | Mastodon API data structures |
 | [server/url_utils.go](server/url_utils.go) | URL pattern matching and parsing |
 | [server/configuration.go](server/configuration.go) | Plugin configuration management |
