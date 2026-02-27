@@ -118,7 +118,7 @@ func TestBuildOGAttachment_LongDescription(t *testing.T) {
 
 func TestExtractGenericURLs_Basic(t *testing.T) {
 	text := "Check this out https://www.npr.org/article/123 and also https://example.com"
-	urls := extractGenericURLs(text, nil)
+	urls := extractGenericURLs(text, nil, "")
 
 	assert.Equal(t, []string{"https://www.npr.org/article/123", "https://example.com"}, urls)
 }
@@ -127,21 +127,21 @@ func TestExtractGenericURLs_ExcludesHandled(t *testing.T) {
 	text := "https://mastodon.social/@user/123 https://www.npr.org/article"
 	excluded := []string{"https://mastodon.social/@user/123"}
 
-	urls := extractGenericURLs(text, excluded)
+	urls := extractGenericURLs(text, excluded, "")
 
 	assert.Equal(t, []string{"https://www.npr.org/article"}, urls)
 }
 
 func TestExtractGenericURLs_StripsPunctuation(t *testing.T) {
 	text := "See https://example.com/page, and https://other.com/thing."
-	urls := extractGenericURLs(text, nil)
+	urls := extractGenericURLs(text, nil, "")
 
 	assert.Equal(t, []string{"https://example.com/page", "https://other.com/thing"}, urls)
 }
 
 func TestExtractGenericURLs_NoDuplicates(t *testing.T) {
 	text := "https://example.com https://example.com"
-	urls := extractGenericURLs(text, nil)
+	urls := extractGenericURLs(text, nil, "")
 
 	assert.Equal(t, []string{"https://example.com"}, urls)
 }

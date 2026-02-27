@@ -63,7 +63,8 @@ func extractMastodonURLs(text string) []string {
 var genericURLPattern = regexp.MustCompile(`https?://[^\s<>"]+`)
 
 // extractGenericURLs finds all URLs in text that aren't in the excludeURLs list.
-func extractGenericURLs(text string, excludeURLs []string) []string {
+// URLs matching the siteURL prefix (the Mattermost server's own URL) are also excluded.
+func extractGenericURLs(text string, excludeURLs []string, siteURL string) []string {
 	excluded := make(map[string]bool, len(excludeURLs))
 	for _, u := range excludeURLs {
 		excluded[u] = true
@@ -76,7 +77,7 @@ func extractGenericURLs(text string, excludeURLs []string) []string {
 	for _, match := range matches {
 		// Strip trailing punctuation that's likely not part of the URL
 		match = strings.TrimRight(match, ".,;:!?)")
-		if !seen[match] && !excluded[match] {
+		if !seen[match] && !excluded[match] && (siteURL == "" || !strings.HasPrefix(match, siteURL)) {
 			urls = append(urls, match)
 			seen[match] = true
 		}

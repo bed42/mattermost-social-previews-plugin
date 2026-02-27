@@ -73,7 +73,13 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	handledURLs = append(handledURLs, blueskyURLs...)
 	handledURLs = append(handledURLs, twitterURLs...)
 	handledURLs = append(handledURLs, instagramURLs...)
-	genericURLs := extractGenericURLs(post.Message, handledURLs)
+
+	// Exclude internal Mattermost links (the server handles its own permalinks)
+	siteURL := ""
+	if cfg := p.API.GetConfig(); cfg != nil && cfg.ServiceSettings.SiteURL != nil {
+		siteURL = *cfg.ServiceSettings.SiteURL
+	}
+	genericURLs := extractGenericURLs(post.Message, handledURLs, siteURL)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted generic URLs", "count", len(genericURLs), "urls", genericURLs)
 
 	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(genericURLs) == 0 {
