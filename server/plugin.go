@@ -232,8 +232,13 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 		preview, err := fetchOGPreview(url)
 		if err != nil {
-			p.API.LogDebug("SOCIAL PREVIEWS: No OG preview available", "url", url, "error", err.Error())
-			continue
+			p.API.LogDebug("SOCIAL PREVIEWS: Direct OG fetch failed, trying noembed fallback", "url", url, "error", err.Error())
+
+			preview, err = fetchNoembedPreview(url)
+			if err != nil {
+				p.API.LogDebug("SOCIAL PREVIEWS: No preview available", "url", url, "error", err.Error())
+				continue
+			}
 		}
 
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched OG preview", "url", url, "title", preview.Title)

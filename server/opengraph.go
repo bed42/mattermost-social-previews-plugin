@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
@@ -36,7 +37,9 @@ func fetchOGPreview(rawURL string) (*OGPreview, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; MattermostPlugin/1.0)")
+	// Use Slackbot UA — many sites/CDNs (especially Cloudflare) whitelist known
+	// link-preview bots but block generic or unknown User-Agents.
+	req.Header.Set("User-Agent", "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -107,6 +110,60 @@ func parseOGTags(rawHTML string) *OGPreview {
 	}
 
 	return preview
+}
+
+// noembedResponse represents the JSON response from noembed.com.
+type noembedResponse struct {
+	Title        string `json:"title"`
+	Summary      string `json:"summary"`
+	AuthorName   string `json:"author_name"`
+	ProviderName string `json:"provider_name"`
+	ProviderURL  string `json:"provider_url"`
+	ThumbnailURL string `json:"thumbnail_url"`
+	URL          string `json:"url"`
+	Error        string `json:"error"`
+}
+
+// fetchNoembedPreview tries noembed.com as a fallback for sites that block direct scraping.
+func fetchNoembedPreview(rawURL string) (*OGPreview, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	apiURL := "https://noembed.com/embed?url=" + url.QueryEscape(rawURL)
+	resp, err := client.Get(apiURL)
+	if err != nil {
+		return nil, fmt.Errorf("noembed request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("noembed status: %d", resp.StatusCode)
+	}
+
+	var noembed noembedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&noembed); err != nil {
+		return nil, fmt.Errorf("noembed decode failed: %w", err)
+	}
+
+	if noembed.Error != "" {
+		return nil, fmt.Errorf("noembed error: %s", noembed.Error)
+	}
+
+	if noembed.Title == "" && noembed.Summary == "" {
+		return nil, fmt.Errorf("noembed returned no metadata")
+	}
+
+	desc := noembed.Summary
+	if desc == "" && noembed.AuthorName != "" {
+		desc = noembed.AuthorName
+	}
+
+	return &OGPreview{
+		Title:       noembed.Title,
+		Description: desc,
+		ImageURL:    noembed.ThumbnailURL,
+		SiteName:    noembed.ProviderName,
+		URL:         noembed.URL,
+	}, nil
 }
 
 // buildOGAttachment creates a Mattermost message attachment from an OG preview.

@@ -75,6 +75,10 @@ The plugin uses Mattermost's **message attachments** API (same approach as GitHu
 
 Any other URL not matching a platform above will get a fallback preview using Open Graph meta tags (`og:title`, `og:description`, `og:image`), with `<title>` and `<meta name="description">` as secondary fallbacks. This covers news sites, blogs, and other websites that Mattermost's built-in preview may not handle well.
 
+For sites behind bot protection (e.g. Cloudflare), the plugin uses a well-known link-preview User-Agent to increase compatibility. If direct fetching still fails (e.g. DataDome-protected sites like NYT), the plugin falls back to [noembed.com](https://noembed.com) for metadata extraction.
+
+Internal Mattermost links (matching the server's SiteURL) are automatically excluded — Mattermost handles its own permalink rendering natively.
+
 ## Preview Content
 
 Each preview displays (where available per platform):
@@ -132,6 +136,7 @@ The plugin will automatically add a rich preview below your message.
 4. **Rate limits** - Social media platforms may rate limit requests
 5. **Layout constraints** - Preview layout is constrained by Mattermost's attachment format
 6. **Platform API changes** - Third-party APIs may change without notice
+7. **Bot protection** - Some sites use advanced bot protection (e.g. DataDome) that blocks all server-side requests regardless of User-Agent. The noembed.com fallback covers many of these (e.g. NYT), but sites without oEmbed support that also block scraping will not get previews
 
 ## Architecture
 
@@ -146,7 +151,7 @@ The plugin will automatically add a rich preview below your message.
 | [server/threads.go](server/threads.go) | Threads preview via oEmbed |
 | [server/tiktok.go](server/tiktok.go) | TikTok preview via oEmbed |
 | [server/instagram.go](server/instagram.go) | Instagram preview via oEmbed |
-| [server/opengraph.go](server/opengraph.go) | Generic fallback preview via Open Graph meta tags |
+| [server/opengraph.go](server/opengraph.go) | Generic fallback preview via Open Graph meta tags + noembed.com fallback |
 | [server/types.go](server/types.go) | Mastodon API data structures |
 | [server/url_utils.go](server/url_utils.go) | URL pattern matching and parsing |
 | [server/configuration.go](server/configuration.go) | Plugin configuration management |
