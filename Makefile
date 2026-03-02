@@ -156,7 +156,7 @@ all: check-style test dist
 manifest-check:
 	./build/bin/manifest check
 
-## Propagates plugin manifest information into the server/ and webapp/ folders.
+## Propagates plugin manifest information into the server/ folder.
 .PHONY: apply
 apply:
 	./build/bin/manifest apply
@@ -167,15 +167,10 @@ install-go-tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 	$(GO) install gotest.tools/gotestsum@v1.7.0
 
-## Runs eslint and golangci-lint
+## Runs golangci-lint
 .PHONY: check-style
-check-style: manifest-check apply webapp/node_modules install-go-tools
+check-style: manifest-check apply install-go-tools
 	@echo Checking for style guide compliance
-
-ifneq ($(HAS_WEBAPP),)
-	cd webapp && npm run lint
-	cd webapp && npm run check-types
-endif
 
 # It's highly recommended to run go-vet first
 # to find potential compile errors that could introduce
@@ -206,24 +201,6 @@ else
 endif
 endif
 
-## Ensures NPM dependencies are installed without having to run this all the time.
-webapp/node_modules: $(wildcard webapp/package.json)
-ifneq ($(HAS_WEBAPP),)
-	cd webapp && $(NPM) install
-	touch $@
-endif
-
-## Builds the webapp, if it exists.
-.PHONY: webapp
-webapp: webapp/node_modules
-ifneq ($(HAS_WEBAPP),)
-ifeq ($(MM_DEBUG),)
-	cd webapp && $(NPM) run build;
-else
-	cd webapp && $(NPM) run debug;
-endif
-endif
-
 ## Generates a tar bundle of the plugin for install.
 .PHONY: bundle
 bundle:
@@ -240,10 +217,6 @@ ifneq ($(HAS_SERVER),)
 	mkdir -p dist/$(PLUGIN_ID)/server
 	cp -r server/dist dist/$(PLUGIN_ID)/server/
 endif
-ifneq ($(HAS_WEBAPP),)
-	mkdir -p dist/$(PLUGIN_ID)/webapp
-	cp -r webapp/dist dist/$(PLUGIN_ID)/webapp/
-endif
 ifeq ($(shell uname),Darwin)
 	cd dist && tar --disable-copyfile -cvzf $(BUNDLE_NAME) $(PLUGIN_ID)
 else
@@ -254,7 +227,7 @@ endif
 
 ## Builds and bundles the plugin.
 .PHONY: dist
-dist: apply server webapp bundle
+dist: apply server bundle
 ifeq ($(PLUGIN_ID),com.mattermost.plugin-starter-template)
 	$(warning WARNING)
 	$(warning You are building with the default plugin ID "com.mattermost.plugin-starter-template".)
@@ -265,15 +238,6 @@ endif
 .PHONY: deploy
 deploy: dist
 	./build/bin/pluginctl deploy $(PLUGIN_ID) dist/$(BUNDLE_NAME)
-
-## Builds and installs the plugin to a server, updating the webapp automatically when changed.
-.PHONY: watch
-watch: apply server bundle
-ifeq ($(MM_DEBUG),)
-	cd webapp && $(NPM) run build:watch
-else
-	cd webapp && $(NPM) run debug:watch
-endif
 
 ## Installs a previous built plugin with updated webpack assets to a server.
 .PHONY: deploy-from-watch
@@ -320,44 +284,27 @@ detach: setup-attach
 		kill -9 $$DELVE_PID ; \
 	fi
 
-## Runs any lints and unit tests defined for the server and webapp, if they exist.
+## Runs any lints and unit tests defined for the server.
 .PHONY: test
-test: apply webapp/node_modules install-go-tools
+test: apply install-go-tools
 ifneq ($(HAS_SERVER),)
 	$(GOBIN)/gotestsum -- -v ./...
 endif
-ifneq ($(HAS_WEBAPP),)
-	cd webapp && $(NPM) run test;
-endif
 
-## Runs any lints and unit tests defined for the server and webapp, if they exist, optimized
+## Runs any lints and unit tests defined for the server, optimized
 ## for a CI environment.
 .PHONY: test-ci
-test-ci: apply webapp/node_modules install-go-tools
+test-ci: apply install-go-tools
 ifneq ($(HAS_SERVER),)
 	$(GOBIN)/gotestsum --format standard-verbose --junitfile report.xml -- ./...
-endif
-ifneq ($(HAS_WEBAPP),)
-	cd webapp && $(NPM) run test;
 endif
 
 ## Creates a coverage report for the server code.
 .PHONY: coverage
-coverage: apply webapp/node_modules
+coverage: apply
 ifneq ($(HAS_SERVER),)
 	$(GO) test $(GO_TEST_FLAGS) -coverprofile=server/coverage.txt ./server/...
 	$(GO) tool cover -html=server/coverage.txt
-endif
-
-## Extract strings for translation from the source code.
-.PHONY: i18n-extract
-i18n-extract:
-ifneq ($(HAS_WEBAPP),)
-ifeq ($(HAS_MM_UTILITIES),)
-	@echo "You must clone github.com/mattermost/mattermost-utilities repo in .. to use this command"
-else
-	cd $(MM_UTILITIES_DIR) && npm install && npm run babel && node mmjstool/build/index.js i18n extract-webapp --webapp-dir $(PWD)/webapp
-endif
 endif
 
 ## Disable the plugin.
@@ -392,11 +339,6 @@ clean:
 ifneq ($(HAS_SERVER),)
 	rm -fr server/coverage.txt
 	rm -fr server/dist
-endif
-ifneq ($(HAS_WEBAPP),)
-	rm -fr webapp/junit.xml
-	rm -fr webapp/dist
-	rm -fr webapp/node_modules
 endif
 	rm -fr build/bin/
 
