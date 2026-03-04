@@ -62,14 +62,24 @@ func extractMastodonURLs(text string) []string {
 // genericURLPattern matches http/https URLs in text
 var genericURLPattern = regexp.MustCompile(`https?://[^\s<>"]+`)
 
+// isExcludedURL checks if a URL should be excluded by checking if it matches or
+// starts with any of the excluded URLs (handles query params/fragments on the same base URL).
+func isExcludedURL(url string, excludeURLs []string) bool {
+	for _, excluded := range excludeURLs {
+		if url == excluded {
+			return true
+		}
+		base := strings.TrimRight(excluded, "/")
+		if strings.HasPrefix(url, base+"/") || strings.HasPrefix(url, base+"?") {
+			return true
+		}
+	}
+	return false
+}
+
 // extractGenericURLs finds all URLs in text that aren't in the excludeURLs list.
 // URLs matching the siteURL prefix (the Mattermost server's own URL) are also excluded.
 func extractGenericURLs(text string, excludeURLs []string, siteURL string) []string {
-	excluded := make(map[string]bool, len(excludeURLs))
-	for _, u := range excludeURLs {
-		excluded[u] = true
-	}
-
 	urls := []string{}
 	seen := make(map[string]bool)
 
@@ -77,7 +87,7 @@ func extractGenericURLs(text string, excludeURLs []string, siteURL string) []str
 	for _, match := range matches {
 		// Strip trailing punctuation that's likely not part of the URL
 		match = strings.TrimRight(match, ".,;:!?)")
-		if !seen[match] && !excluded[match] && (siteURL == "" || !strings.HasPrefix(match, siteURL)) {
+		if !seen[match] && !isExcludedURL(match, excludeURLs) && (siteURL == "" || !strings.HasPrefix(match, siteURL)) {
 			urls = append(urls, match)
 			seen[match] = true
 		}

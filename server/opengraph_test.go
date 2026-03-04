@@ -145,3 +145,22 @@ func TestExtractGenericURLs_NoDuplicates(t *testing.T) {
 
 	assert.Equal(t, []string{"https://example.com"}, urls)
 }
+
+func TestExtractGenericURLs_ExcludesURLWithQueryParams(t *testing.T) {
+	// Instagram URLs with query params should be excluded when the base URL is handled
+	text := "https://www.instagram.com/reel/DVeaFkfEVbS/?igsh=MXBjcGVtYTlmZnhqZg=="
+	excluded := []string{"https://www.instagram.com/reel/DVeaFkfEVbS/"}
+
+	urls := extractGenericURLs(text, excluded, "")
+
+	assert.Empty(t, urls)
+}
+
+func TestExtractGenericURLs_ExcludesURLWithQueryParamsNoTrailingSlash(t *testing.T) {
+	text := "https://www.instagram.com/p/ABC123?img_index=2"
+	excluded := []string{"https://www.instagram.com/p/ABC123"}
+
+	urls := extractGenericURLs(text, excluded, "")
+
+	assert.Empty(t, urls)
+}
