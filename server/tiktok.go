@@ -14,11 +14,13 @@ import (
 
 // TikTok URL patterns:
 // Full: https://www.tiktok.com/@username/video/1234567890
+// Photo: https://www.tiktok.com/@username/photo/1234567890
 // Short: https://vt.tiktok.com/ZSm6d8htK/
 var tiktokPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9_.]+/video/\d+`),
+	regexp.MustCompile(`https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9_.]+/(?:video|photo)/\d+`),
 	regexp.MustCompile(`https?://vt\.tiktok\.com/[a-zA-Z0-9]+/?`),
 }
+
 
 // extractTikTokURLs finds all TikTok URLs in the given text.
 func extractTikTokURLs(text string) []string {
@@ -49,6 +51,42 @@ type TikTokOEmbed struct {
 
 // tiktokOEmbedBase is the base URL for TikTok oEmbed API. Override in tests.
 var tiktokOEmbedBase = "https://www.tiktok.com/oembed"
+
+// tiktokPhotoPattern matches /photo/ paths that need to be rewritten to /video/ for oEmbed.
+var tiktokPhotoPattern = regexp.MustCompile(`(/photo/)(\d+)`)
+
+// resolveTikTokForOEmbed follows redirects on a TikTok URL and normalizes
+// /photo/ paths to /video/ so the oEmbed API accepts them.
+// Only call this as a fallback when the direct oEmbed call fails.
+func resolveTikTokForOEmbed(rawURL string) (string, error) {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve TikTok URL: %w", err)
+	}
+	resp.Body.Close()
+
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return "", fmt.Errorf("no redirect location for TikTok URL")
+	}
+
+	// Strip query params and normalize /photo/ to /video/
+	if u, err := url.Parse(loc); err == nil {
+		u.RawQuery = ""
+		u.Fragment = ""
+		loc = u.String()
+	}
+	loc = tiktokPhotoPattern.ReplaceAllString(loc, "/video/$2")
+
+	return loc, nil
+}
 
 // fetchTikTokOEmbed fetches oEmbed data for a TikTok video URL.
 func fetchTikTokOEmbed(videoURL string) (*TikTokOEmbed, error) {

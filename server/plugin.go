@@ -156,8 +156,18 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 		oembed, err := fetchTikTokOEmbed(url)
 		if err != nil {
-			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch TikTok video", "url", url, "error", err.Error())
-			continue
+			// Direct oEmbed failed — try resolving redirects and normalizing /photo/ to /video/
+			p.API.LogDebug("SOCIAL PREVIEWS: Direct TikTok oEmbed failed, trying resolve fallback", "url", url, "error", err.Error())
+			resolvedURL, resolveErr := resolveTikTokForOEmbed(url)
+			if resolveErr != nil {
+				p.API.LogWarn("SOCIAL PREVIEWS: Failed to resolve TikTok URL", "url", url, "error", resolveErr.Error())
+				continue
+			}
+			oembed, err = fetchTikTokOEmbed(resolvedURL)
+			if err != nil {
+				p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch TikTok video", "url", url, "error", err.Error())
+				continue
+			}
 		}
 
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched TikTok video", "url", url, "author", oembed.AuthorName)
