@@ -13,6 +13,8 @@ var mastodonPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`https?://([^/\s]+)/@([a-zA-Z0-9_]+)/(\d+)`),
 	regexp.MustCompile(`https?://([^/\s]+)/users/([a-zA-Z0-9_]+)/statuses/(\d+)`),
 	regexp.MustCompile(`https?://([^/\s]+)/@([a-zA-Z0-9_]+)@[^/\s]+/(\d+)`),
+	// Iceshrimp.NET and similar: https://instance.domain/notes/alphanumericID
+	regexp.MustCompile(`https?://([^/\s]+)/notes/([a-zA-Z0-9]+)`),
 }
 
 // Threads URL pattern: https://threads.net/@username/post/SHORTCODE or threads.com
@@ -38,6 +40,7 @@ func extractThreadsURLs(text string) []string {
 var mastodonExtractPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^(https?://[^/]+)/@[^/]+/(\d+)`),
 	regexp.MustCompile(`^(https?://[^/]+)/users/[^/]+/statuses/(\d+)`),
+	regexp.MustCompile(`^(https?://[^/]+)/notes/([a-zA-Z0-9]+)`),
 }
 
 // extractMastodonURLs finds all Mastodon URLs in the given text
