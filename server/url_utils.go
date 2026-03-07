@@ -5,6 +5,20 @@ import (
 	"strings"
 )
 
+// Patterns for stripping backtick-wrapped content (code blocks and inline code)
+var codeBlockPattern = regexp.MustCompile("(?s)```.*?```")
+var inlineCodePattern = regexp.MustCompile("`[^`]+`")
+
+// stripBacktickContent removes content inside backticks (both inline code
+// and code blocks) to prevent URL extraction from code-formatted text.
+func stripBacktickContent(text string) string {
+	// Strip triple-backtick code blocks first (they may contain single backticks)
+	text = codeBlockPattern.ReplaceAllString(text, "")
+	// Then strip inline code
+	text = inlineCodePattern.ReplaceAllString(text, "")
+	return text
+}
+
 // Mastodon URL patterns:
 // Pattern 1: https://instance.domain/@username/123456
 // Pattern 2: https://instance.domain/users/username/statuses/123456

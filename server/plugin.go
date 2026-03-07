@@ -43,28 +43,31 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 	p.API.LogInfo("SOCIAL PREVIEWS: MessageWillBePosted called", "message", post.Message)
 
+	// Strip backtick-wrapped content so URLs in code formatting are ignored
+	cleanMessage := stripBacktickContent(post.Message)
+
 	// Extract Mastodon URLs from post
-	mastodonURLs := extractMastodonURLs(post.Message)
+	mastodonURLs := extractMastodonURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted URLs", "count", len(mastodonURLs), "urls", mastodonURLs)
 
 	// Extract Threads URLs from post
-	threadsURLs := extractThreadsURLs(post.Message)
+	threadsURLs := extractThreadsURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Threads URLs", "count", len(threadsURLs), "urls", threadsURLs)
 
 	// Extract TikTok URLs from post
-	tiktokURLs := extractTikTokURLs(post.Message)
+	tiktokURLs := extractTikTokURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted TikTok URLs", "count", len(tiktokURLs), "urls", tiktokURLs)
 
 	// Extract Bluesky URLs from post
-	blueskyURLs := extractBlueskyURLs(post.Message)
+	blueskyURLs := extractBlueskyURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Bluesky URLs", "count", len(blueskyURLs), "urls", blueskyURLs)
 
 	// Extract Twitter/X URLs from post
-	twitterURLs := extractTwitterURLs(post.Message)
+	twitterURLs := extractTwitterURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Twitter/X URLs", "count", len(twitterURLs), "urls", twitterURLs)
 
 	// Extract Instagram URLs from post
-	instagramURLs := extractInstagramURLs(post.Message)
+	instagramURLs := extractInstagramURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Instagram URLs", "count", len(instagramURLs), "urls", instagramURLs)
 
 	// Also extract generic URLs for fallback OG previews
@@ -79,7 +82,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	if cfg := p.API.GetConfig(); cfg != nil && cfg.ServiceSettings.SiteURL != nil {
 		siteURL = *cfg.ServiceSettings.SiteURL
 	}
-	genericURLs := extractGenericURLs(post.Message, handledURLs, siteURL)
+	genericURLs := extractGenericURLs(cleanMessage, handledURLs, siteURL)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted generic URLs", "count", len(genericURLs), "urls", genericURLs)
 
 	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(genericURLs) == 0 {
