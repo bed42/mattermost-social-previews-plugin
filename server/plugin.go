@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/mattermost/mattermost/server/public/model"
@@ -45,6 +46,16 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 	// Strip backtick-wrapped content so URLs in code formatting are ignored
 	cleanMessage := stripBacktickContent(post.Message)
+
+	// Strip tracking params from URLs (only from non-backtick portions)
+	urlReplacements := cleanMessageURLs(cleanMessage)
+	if len(urlReplacements) > 0 {
+		for original, clean := range urlReplacements {
+			post.Message = strings.ReplaceAll(post.Message, original, clean)
+		}
+		cleanMessage = stripBacktickContent(post.Message)
+		p.API.LogInfo("SOCIAL PREVIEWS: Stripped tracking params", "count", len(urlReplacements))
+	}
 
 	// Extract Mastodon URLs from post
 	mastodonURLs := extractMastodonURLs(cleanMessage)

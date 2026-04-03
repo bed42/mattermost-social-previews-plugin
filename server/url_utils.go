@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -111,6 +112,81 @@ func extractGenericURLs(text string, excludeURLs []string, siteURL string) []str
 	}
 
 	return urls
+}
+
+// trackingParams is the denylist of query parameter names considered tracking/analytics.
+var trackingParams = map[string]bool{
+	// UTM campaign tracking
+	"utm_source":   true,
+	"utm_medium":   true,
+	"utm_campaign": true,
+	"utm_term":     true,
+	"utm_content":  true,
+	// Facebook / Meta
+	"fbclid":    true,
+	"fb_ref":    true,
+	"fb_source": true,
+	// Google Ads
+	"gclid":  true,
+	"gclsrc": true,
+	"dclid":  true,
+	"gbraid": true,
+	"wbraid": true,
+	// Twitter / X
+	"s": true,
+	"t": true,
+	// Instagram
+	"igsh":   true,
+	"igshid": true,
+	// Referral tracking
+	"ref":     true,
+	"ref_src": true,
+	"ref_url": true,
+	// Microsoft / Bing
+	"msclkid": true,
+	// Mailchimp
+	"mc_cid": true,
+	"mc_eid": true,
+}
+
+// stripTrackingParams removes known tracking query parameters from a URL string.
+// Returns the original string unchanged if parsing fails or no tracking params are found.
+func stripTrackingParams(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	q := u.Query()
+	if len(q) == 0 {
+		return rawURL
+	}
+	changed := false
+	for key := range q {
+		if trackingParams[strings.ToLower(key)] {
+			q.Del(key)
+			changed = true
+		}
+	}
+	if !changed {
+		return rawURL
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// cleanMessageURLs finds URLs in the message text that contain tracking params
+// and returns a map from original URL to cleaned URL.
+func cleanMessageURLs(message string) map[string]string {
+	replacements := map[string]string{}
+	matches := genericURLPattern.FindAllString(message, -1)
+	for _, match := range matches {
+		match = strings.TrimRight(match, ".,;:!?)")
+		clean := stripTrackingParams(match)
+		if clean != match {
+			replacements[match] = clean
+		}
+	}
+	return replacements
 }
 
 // parseMastodonURL extracts the instance URL and status ID from a Mastodon URL
