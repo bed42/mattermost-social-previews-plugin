@@ -13,7 +13,7 @@ A Mattermost plugin that automatically displays rich previews for social media U
 - **Rich previews** - Shows author, avatar, content, images, web url previews and video links
 - **Mastodon reply context** - Shows parent posts for Mastodon replies (both API replies and embedded quote links)
 - **No configuration** - Works out of the box with default settings
-- **Privacy-friendly** - Only fetches public posts, no authentication required
+- **Privacy-friendly** - Only fetches public posts, no authentication required. Strips tracking params from urls.
 
 ## The Problem
 
