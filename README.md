@@ -191,7 +191,3 @@ Look for log entries prefixed with `social-previews`
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Credits
-
-Built using the [Mattermost Plugin Starter Template](https://github.com/mattermost/mattermost-plugin-starter-template).
