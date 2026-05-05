@@ -55,14 +55,14 @@ func parseTwitterURL(rawURL string) (username string, tweetID string, ok bool) {
 
 // TwitterPost holds data from the fxtwitter API.
 type TwitterPost struct {
-	Text        string
-	Author      TwitterAuthor
-	Images      []TwitterMedia
-	Video       *TwitterVideo
-	LikeCount   int
-	ReplyCount  int
+	Text         string
+	Author       TwitterAuthor
+	Images       []TwitterMedia
+	Video        *TwitterVideo
+	LikeCount    int
+	ReplyCount   int
 	RetweetCount int
-	QuoteCount  int
+	QuoteCount   int
 }
 
 // TwitterAuthor represents the tweet author.
@@ -121,7 +121,7 @@ func parseTwitterResponse(data []byte) (*TwitterPost, error) {
 			} `json:"author"`
 			Media *struct {
 				Photos []struct {
-					URL    string `json:"url"`
+					URL     string `json:"url"`
 					AltText string `json:"altText"`
 				} `json:"photos"`
 				Videos []struct {
@@ -183,7 +183,7 @@ func buildTwitterAttachment(post *TwitterPost, originalURL string) *model.SlackA
 		AuthorIcon: post.Author.AvatarURL,
 		Title:      fmt.Sprintf("@%s", post.Author.ScreenName),
 		TitleLink:  originalURL,
-		Text:       post.Text,
+		Text:       wrapText(post.Text, previewWrapWidth),
 		Footer:     "X Preview",
 		FooterIcon: "https://abs.twimg.com/favicons/twitter.3.ico",
 	}

@@ -180,7 +180,7 @@ func buildInstagramAttachment(post *InstagramPost, originalURL string) *model.Sl
 		AuthorLink: displayURL,
 		Title:      authorName,
 		TitleLink:  displayURL,
-		Text:       caption,
+		Text:       wrapText(caption, previewWrapWidth),
 		Footer:     footerText,
 		FooterIcon: "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
 	}

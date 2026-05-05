@@ -21,7 +21,6 @@ var tiktokPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`https?://vt\.tiktok\.com/[a-zA-Z0-9]+/?`),
 }
 
-
 // extractTikTokURLs finds all TikTok URLs in the given text.
 func extractTikTokURLs(text string) []string {
 	urls := []string{}
@@ -133,7 +132,7 @@ func buildTikTokAttachment(oembed *TikTokOEmbed, originalURL string) *model.Slac
 	}
 
 	if oembed.Title != "" {
-		attachment.Text = oembed.Title
+		attachment.Text = wrapText(oembed.Title, previewWrapWidth)
 	}
 
 	if oembed.ThumbnailURL != "" {

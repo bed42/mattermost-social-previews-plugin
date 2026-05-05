@@ -105,7 +105,7 @@ func buildAttachment(status *MastodonStatus, url string, replyToUsername string)
 		AuthorIcon: status.Account.Avatar,
 		Title:      fmt.Sprintf("@%s", status.Account.Acct),
 		TitleLink:  url,
-		Text:       content,
+		Text:       wrapText(content, previewWrapWidth),
 		Footer:     "🦣 Mastodon Preview",
 		FooterIcon: "https://joinmastodon.org/favicon-32x32.png",
 	}

@@ -126,7 +126,7 @@ func TestFetchThreadsPost(t *testing.T) {
 	t.Run("successful fetch", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`<html><head>
+			_, _ = w.Write([]byte(`<html><head>
 				<meta property="og:title" content="Test User (&#064;test) on Threads">
 				<meta property="og:image" content="https://example.com/img.jpg?a=1&amp;b=2">
 				<meta property="og:url" content="https://www.threads.net/@test/post/XYZ">
@@ -156,7 +156,7 @@ func TestFetchThreadsPost(t *testing.T) {
 	t.Run("no OG tags", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`<html><head><title>Empty</title></head></html>`))
+			_, _ = w.Write([]byte(`<html><head><title>Empty</title></head></html>`))
 		}))
 		defer server.Close()
 

@@ -186,7 +186,7 @@ func buildOGAttachment(preview *OGPreview, originalURL string) *model.SlackAttac
 		Color:     "#808080",
 		Title:     preview.Title,
 		TitleLink: originalURL,
-		Text:      desc,
+		Text:      wrapText(desc, previewWrapWidth),
 		Footer:    fmt.Sprintf("🔗 %s", footer),
 	}
 

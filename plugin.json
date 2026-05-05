@@ -1,6 +1,6 @@
 {
     "id": "social-previews",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "name": "Social Previews",
     "description": "Rich previews for social media URLs (Mastodon, Bluesky, Twitter/X, Threads, TikTok, Instagram) - works on web, desktop, and mobile clients",
     "homepage_url": "https://github.com/bed/mattermost-social-previews-plugin",
@@ -19,6 +19,21 @@
     "settings_schema": {
         "header": "Configure how social media previews are displayed in your Mattermost instance.",
         "footer": "",
-        "settings": []
+        "settings": [
+            {
+                "key": "DisabledDomains",
+                "display_name": "Disabled Domains",
+                "type": "longtext",
+                "help_text": "URLs from these domains will not generate previews. Enter one domain per line, or separate with commas (e.g. example.com). Subdomains are matched automatically — example.com also blocks news.example.com.",
+                "default": ""
+            },
+            {
+                "key": "ExcludedChannels",
+                "display_name": "Excluded Channels",
+                "type": "longtext",
+                "help_text": "Channel IDs where previews should NOT be generated. Enter one channel ID per line, or separate with commas. Channels can also be toggled in-place with /social-previews disable in the channel itself; toggles made via the slash command are stored separately and combined with this list.",
+                "default": ""
+            }
+        ]
     }
 }

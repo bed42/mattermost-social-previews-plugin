@@ -113,7 +113,7 @@ func buildThreadsAttachment(post *ThreadsPost, originalURL string) *model.SlackA
 		Color:      "#000000",
 		AuthorName: authorName,
 		AuthorLink: displayURL,
-		Text:       post.Description,
+		Text:       wrapText(post.Description, previewWrapWidth),
 		Footer:     "Threads Preview",
 		FooterIcon: "https://static.cdninstagram.com/rsrc.php/v3/yI/r/VsNE-OHk_8a.png",
 	}

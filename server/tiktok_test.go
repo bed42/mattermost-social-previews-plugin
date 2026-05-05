@@ -75,7 +75,7 @@ func TestFetchTikTokOEmbed(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"title": "Cool video #fyp",
 				"author_name": "Lucky Bii",
 				"author_url": "https://www.tiktok.com/@user123",

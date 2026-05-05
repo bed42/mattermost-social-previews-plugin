@@ -46,18 +46,18 @@ func parseBlueskyURL(rawURL string) (handle string, rkey string, ok bool) {
 
 // BlueskyPost represents the relevant data from a Bluesky post.
 type BlueskyPost struct {
-	URI       string
-	CID       string
-	Author    BlueskyAuthor
-	Text      string
-	CreatedAt string
-	Images    []BlueskyImage
-	Video     *BlueskyVideo
-	External  *BlueskyExternal
-	LikeCount int
-	ReplyCount int
+	URI         string
+	CID         string
+	Author      BlueskyAuthor
+	Text        string
+	CreatedAt   string
+	Images      []BlueskyImage
+	Video       *BlueskyVideo
+	External    *BlueskyExternal
+	LikeCount   int
+	ReplyCount  int
 	RepostCount int
-	QuoteCount int
+	QuoteCount  int
 }
 
 // BlueskyAuthor represents a Bluesky post author.
@@ -173,8 +173,8 @@ func parseBlueskyResponse(data []byte) (*BlueskyPost, error) {
 					Text      string `json:"text"`
 					CreatedAt string `json:"createdAt"`
 					Embed     *struct {
-						Type     string `json:"$type"`
-						Images   []struct {
+						Type   string `json:"$type"`
+						Images []struct {
 							Alt   string `json:"alt"`
 							Image struct {
 								Type string `json:"$type"`
@@ -286,7 +286,7 @@ func buildBlueskyAttachment(post *BlueskyPost, originalURL string) *model.SlackA
 		AuthorIcon: post.Author.Avatar,
 		Title:      fmt.Sprintf("@%s", post.Author.Handle),
 		TitleLink:  originalURL,
-		Text:       post.Text,
+		Text:       wrapText(post.Text, previewWrapWidth),
 		Footer:     "Bluesky Preview",
 		FooterIcon: "https://bsky.app/static/favicon-32x32.png",
 	}

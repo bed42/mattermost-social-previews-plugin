@@ -134,7 +134,7 @@ func TestFetchInstagramPost(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Contains(t, r.Header.Get("User-Agent"), "MattermostPlugin")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`<html><head>
+			_, _ = w.Write([]byte(`<html><head>
 				<meta property="og:title" content="Alice on Instagram: &quot;Hello!&quot;">
 				<meta property="og:description" content="Hello world">
 				<meta property="og:image" content="https://scontent.cdninstagram.com/photo.jpg">
@@ -157,7 +157,7 @@ func TestFetchInstagramPost(t *testing.T) {
 	t.Run("no OG metadata", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`<html><head></head></html>`))
+			_, _ = w.Write([]byte(`<html><head></head></html>`))
 		}))
 		defer server.Close()
 

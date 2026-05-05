@@ -101,7 +101,7 @@ func TestFetchBlueskyPost(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"thread": {
 					"$type": "app.bsky.feed.defs#threadViewPost",
 					"post": {
@@ -147,11 +147,11 @@ func TestFetchBlueskyPost(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 
 			if r.URL.Path == "/xrpc/com.atproto.identity.resolveHandle" {
-				w.Write([]byte(`{"did": "did:plc:resolved123"}`))
+				_, _ = w.Write([]byte(`{"did": "did:plc:resolved123"}`))
 				return
 			}
 
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"thread": {
 					"post": {
 						"uri": "at://did:plc:resolved123/app.bsky.feed.post/3abc",
@@ -189,7 +189,7 @@ func TestFetchBlueskyPost(t *testing.T) {
 	t.Run("with image embeds", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"thread": {
 					"post": {
 						"uri": "at://did:plc:test/app.bsky.feed.post/3abc",
@@ -237,7 +237,7 @@ func TestFetchBlueskyPost(t *testing.T) {
 	t.Run("with external embed", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"thread": {
 					"post": {
 						"uri": "at://did:plc:test/app.bsky.feed.post/3abc",

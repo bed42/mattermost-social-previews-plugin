@@ -95,6 +95,39 @@ func isExcludedURL(url string, excludeURLs []string) bool {
 	return false
 }
 
+// isDomainDisabled reports whether rawURL's host matches (or is a subdomain of)
+// any entry in disabledDomains. Entries are expected pre-lowercased and trimmed.
+func isDomainDisabled(rawURL string, disabledDomains []string) bool {
+	if len(disabledDomains) == 0 {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, d := range disabledDomains {
+		if host == d || strings.HasSuffix(host, "."+d) {
+			return true
+		}
+	}
+	return false
+}
+
+// filterDisabledDomains returns urls with disabled-domain entries removed.
+func filterDisabledDomains(urls []string, disabledDomains []string) []string {
+	if len(disabledDomains) == 0 {
+		return urls
+	}
+	out := make([]string, 0, len(urls))
+	for _, u := range urls {
+		if !isDomainDisabled(u, disabledDomains) {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
 // extractGenericURLs finds all URLs in text that aren't in the excludeURLs list.
 // URLs matching the siteURL prefix (the Mattermost server's own URL) are also excluded.
 func extractGenericURLs(text string, excludeURLs []string, siteURL string) []string {

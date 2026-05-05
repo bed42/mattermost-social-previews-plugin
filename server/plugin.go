@@ -22,6 +22,10 @@ type Plugin struct {
 
 // OnActivate is invoked when the plugin is activated. If an error is returned, the plugin will be deactivated.
 func (p *Plugin) OnActivate() error {
+	if err := p.registerCommand(); err != nil {
+		p.API.LogError("SOCIAL PREVIEWS: Failed to register slash command", "error", err.Error())
+		return err
+	}
 	p.API.LogInfo("SOCIAL PREVIEWS: Activated successfully")
 	return nil
 }
@@ -43,6 +47,22 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	}()
 
 	p.API.LogInfo("SOCIAL PREVIEWS: MessageWillBePosted called", "message", post.Message)
+
+	// Skip entirely if this channel is excluded (via System Console or /social-previews disable).
+	// If the message contains any URL, suppress Mattermost's built-in link unfurl by attaching an
+	// empty attachments prop — the server's getEmbedForPost short-circuits when "attachments"
+	// is present in props. This makes excluded channels preview-free for both this plugin AND
+	// the built-in unfurler.
+	if p.isChannelExcluded(post.ChannelId) {
+		p.API.LogInfo("SOCIAL PREVIEWS: Channel is excluded, skipping", "channel_id", post.ChannelId)
+		if genericURLPattern.MatchString(stripBacktickContent(post.Message)) {
+			if post.Props == nil {
+				post.Props = make(map[string]interface{})
+			}
+			post.Props["attachments"] = []*model.SlackAttachment{}
+		}
+		return post, ""
+	}
 
 	// Strip backtick-wrapped content so URLs in code formatting are ignored
 	cleanMessage := stripBacktickContent(post.Message)
@@ -81,8 +101,19 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	instagramURLs := extractInstagramURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Instagram URLs", "count", len(instagramURLs), "urls", instagramURLs)
 
+	// Filter out URLs whose host matches the admin-configured disable list
+	disabledDomains := p.getConfiguration().disabledDomainsParsed
+	mastodonURLs = filterDisabledDomains(mastodonURLs, disabledDomains)
+	threadsURLs = filterDisabledDomains(threadsURLs, disabledDomains)
+	tiktokURLs = filterDisabledDomains(tiktokURLs, disabledDomains)
+	blueskyURLs = filterDisabledDomains(blueskyURLs, disabledDomains)
+	twitterURLs = filterDisabledDomains(twitterURLs, disabledDomains)
+	instagramURLs = filterDisabledDomains(instagramURLs, disabledDomains)
+
 	// Also extract generic URLs for fallback OG previews
-	handledURLs := append(mastodonURLs, threadsURLs...)
+	handledURLs := make([]string, 0, len(mastodonURLs)+len(threadsURLs)+len(tiktokURLs)+len(blueskyURLs)+len(twitterURLs)+len(instagramURLs))
+	handledURLs = append(handledURLs, mastodonURLs...)
+	handledURLs = append(handledURLs, threadsURLs...)
 	handledURLs = append(handledURLs, tiktokURLs...)
 	handledURLs = append(handledURLs, blueskyURLs...)
 	handledURLs = append(handledURLs, twitterURLs...)
@@ -94,6 +125,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		siteURL = *cfg.ServiceSettings.SiteURL
 	}
 	genericURLs := extractGenericURLs(cleanMessage, handledURLs, siteURL)
+	genericURLs = filterDisabledDomains(genericURLs, disabledDomains)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted generic URLs", "count", len(genericURLs), "urls", genericURLs)
 
 	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(genericURLs) == 0 {
@@ -136,6 +168,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 		// Then check for embedded Mastodon URLs in the post content (e.g. "RE:" quote links)
 		embeddedURLs := extractMastodonURLs(mastodonPost.Content)
+		embeddedURLs = filterDisabledDomains(embeddedURLs, disabledDomains)
 		for _, embeddedURL := range embeddedURLs {
 			p.API.LogInfo("SOCIAL PREVIEWS: Fetching embedded Mastodon post", "url", embeddedURL)
 			embeddedPost, err := p.fetchMastodonPost(embeddedURL)

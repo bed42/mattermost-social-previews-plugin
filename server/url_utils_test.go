@@ -171,3 +171,127 @@ func TestExtractURLsIgnoresBackticks(t *testing.T) {
 	blueskyURLs := extractBlueskyURLs(cleaned)
 	assert.Equal(t, []string{"https://bsky.app/profile/bob.bsky.social/post/3def456"}, blueskyURLs)
 }
+
+func TestIsDomainDisabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		disabled []string
+		expected bool
+	}{
+		{
+			name:     "exact host match",
+			url:      "https://example.com/foo",
+			disabled: []string{"example.com"},
+			expected: true,
+		},
+		{
+			name:     "subdomain match",
+			url:      "https://news.example.com/foo",
+			disabled: []string{"example.com"},
+			expected: true,
+		},
+		{
+			name:     "deep subdomain match",
+			url:      "https://a.b.c.example.com/foo",
+			disabled: []string{"example.com"},
+			expected: true,
+		},
+		{
+			name:     "non-match",
+			url:      "https://other.com/foo",
+			disabled: []string{"example.com"},
+			expected: false,
+		},
+		{
+			name:     "lookalike suffix does not match",
+			url:      "https://notexample.com/foo",
+			disabled: []string{"example.com"},
+			expected: false,
+		},
+		{
+			name:     "case insensitive host",
+			url:      "https://Example.COM/foo",
+			disabled: []string{"example.com"},
+			expected: true,
+		},
+		{
+			name:     "http scheme",
+			url:      "http://example.com/foo",
+			disabled: []string{"example.com"},
+			expected: true,
+		},
+		{
+			name:     "host with port",
+			url:      "https://example.com:8080/foo",
+			disabled: []string{"example.com"},
+			expected: true,
+		},
+		{
+			name:     "empty disabled list",
+			url:      "https://example.com/foo",
+			disabled: nil,
+			expected: false,
+		},
+		{
+			name:     "malformed url",
+			url:      "not a url",
+			disabled: []string{"example.com"},
+			expected: false,
+		},
+		{
+			name:     "matches second entry",
+			url:      "https://bsky.app/profile/x/post/y",
+			disabled: []string{"example.com", "bsky.app"},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isDomainDisabled(tt.url, tt.disabled)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFilterDisabledDomains(t *testing.T) {
+	tests := []struct {
+		name     string
+		urls     []string
+		disabled []string
+		expected []string
+	}{
+		{
+			name:     "empty disabled returns input unchanged",
+			urls:     []string{"https://example.com/a", "https://other.com/b"},
+			disabled: nil,
+			expected: []string{"https://example.com/a", "https://other.com/b"},
+		},
+		{
+			name:     "filters matching urls",
+			urls:     []string{"https://example.com/a", "https://other.com/b", "https://news.example.com/c"},
+			disabled: []string{"example.com"},
+			expected: []string{"https://other.com/b"},
+		},
+		{
+			name:     "all filtered",
+			urls:     []string{"https://example.com/a", "https://example.com/b"},
+			disabled: []string{"example.com"},
+			expected: []string{},
+		},
+		{
+			name:     "none filtered",
+			urls:     []string{"https://other.com/a"},
+			disabled: []string{"example.com"},
+			expected: []string{"https://other.com/a"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterDisabledDomains(tt.urls, tt.disabled)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

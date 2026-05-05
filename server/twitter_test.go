@@ -79,23 +79,23 @@ func TestParseTwitterURL(t *testing.T) {
 	tests := []struct {
 		name         string
 		url          string
-		wantUsername  string
+		wantUsername string
 		wantTweetID  string
 		wantOK       bool
 	}{
 		{
-			name:        "x.com",
-			url:         "https://x.com/elonmusk/status/1234567890",
+			name:         "x.com",
+			url:          "https://x.com/elonmusk/status/1234567890",
 			wantUsername: "elonmusk",
-			wantTweetID: "1234567890",
-			wantOK:      true,
+			wantTweetID:  "1234567890",
+			wantOK:       true,
 		},
 		{
-			name:        "twitter.com",
-			url:         "https://twitter.com/jack/status/9876543210",
+			name:         "twitter.com",
+			url:          "https://twitter.com/jack/status/9876543210",
 			wantUsername: "jack",
-			wantTweetID: "9876543210",
-			wantOK:      true,
+			wantTweetID:  "9876543210",
+			wantOK:       true,
 		},
 		{
 			name:   "invalid URL",
@@ -121,7 +121,7 @@ func TestFetchTwitterPost(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/testuser/status/123", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"code": 200,
 				"tweet": {
 					"text": "Hello Twitter!",
@@ -158,7 +158,7 @@ func TestFetchTwitterPost(t *testing.T) {
 	t.Run("with photos", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"code": 200,
 				"tweet": {
 					"text": "Check these photos!",
@@ -198,7 +198,7 @@ func TestFetchTwitterPost(t *testing.T) {
 	t.Run("with video", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"code": 200,
 				"tweet": {
 					"text": "Watch this!",
