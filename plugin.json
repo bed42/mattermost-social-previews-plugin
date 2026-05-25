@@ -1,8 +1,8 @@
 {
     "id": "social-previews",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "name": "Social Previews",
-    "description": "Rich previews for social media URLs (Mastodon, Bluesky, Twitter/X, Threads, TikTok, Instagram) - works on web, desktop, and mobile clients",
+    "description": "Rich previews for social media URLs (Mastodon, Bluesky, Twitter/X, Threads, TikTok, Instagram, Reddit) - works on web, desktop, and mobile clients",
     "homepage_url": "https://github.com/bed/mattermost-social-previews-plugin",
     "support_url": "https://github.com/bed/mattermost-social-previews-plugin/issues",
     "icon_path": "assets/starter-template-icon.svg",

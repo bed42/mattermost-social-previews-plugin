@@ -12,6 +12,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 - **Threads** - via oEmbed
 - **TikTok** - via oEmbed
 - **Instagram** - via oEmbed
+- **Reddit** - via Reddit public JSON API (`/comments/{id}.json?sr_detail=1&raw_json=1`)
 
 ## Features
 
@@ -33,6 +34,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 | `server/threads.go` | Threads preview via oEmbed |
 | `server/tiktok.go` | TikTok preview via oEmbed |
 | `server/instagram.go` | Instagram preview via oEmbed |
+| `server/reddit.go` | Reddit preview via public JSON API; subreddit icon, score, comment count |
 | `server/types.go` | Mastodon API data structures (`MastodonStatus`, `MastodonAccount`, `MastodonMedia`, etc.) |
 | `server/url_utils.go` | Regex-based URL detection and parsing for Mastodon URLs |
 | `server/api.go` | HTTP API routes (minimal - `/api/v1/hello`) |
@@ -46,6 +48,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 - Threads: `https://www.threads.net/@user/post/id`
 - TikTok: `https://www.tiktok.com/@user/video/id`
 - Instagram: `https://www.instagram.com/p/id/`, `/reel/id/`
+- Reddit: `https://(www|old|np|new).reddit.com/r/sub/comments/id/[slug/]`, `https://redd.it/id`
 
 ## Build
 

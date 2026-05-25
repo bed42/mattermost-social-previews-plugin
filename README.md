@@ -2,17 +2,17 @@
 
 > **Disclaimer:** This project was built with the guidance of a human developer and implemented primarily by [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding assistant). I didn't have time to dev all of this by hand myself, but did have enough to guide Claude to do so! If LLM-assisted development is something you actively avoid, consider this your fair warning.
 
-A Mattermost plugin that automatically displays rich previews for social media URLs. Supports **Mastodon**, **Bluesky**, **Twitter/X**, **Threads**, **TikTok**, and **Instagram**. Works on all platforms including **web, desktop, iOS, and Android**.
+A Mattermost plugin that automatically displays rich previews for social media URLs. Supports **Mastodon**, **Bluesky**, **Twitter/X**, **Threads**, **TikTok**, **Instagram**, and **Reddit**. Works on all platforms including **web, desktop, iOS, and Android**.
 
 ## Features
 
-- **Multi-platform** - Previews from Mastodon, Bluesky, Twitter/X, Threads, TikTok, and Instagram
+- **Multi-platform** - Previews from Mastodon, Bluesky, Twitter/X, Threads, TikTok, Instagram, and Reddit
 - **Generic link previews** - Fallback Open Graph previews for any URL not handled by a platform-specific handler
 - **Cross-platform** - Works on all Mattermost clients (web, desktop, mobile)
 - **Automatic detection** - Detects social media URLs and generates previews inline
 - **Rich previews** - Shows author, avatar, content, images, web url previews and video links
 - **Mastodon reply context** - Shows parent posts for Mastodon replies (both API replies and embedded quote links)
-- **No configuration** - Works out of the box with default settings
+- **Zero-config defaults** - Works out of the box, with optional admin and per-channel controls for tighter scoping (see [Configuration](#configuration))
 - **Privacy-friendly** - Only fetches public posts, no authentication required. Strips tracking params from urls.
 
 ## The Problem
@@ -71,6 +71,15 @@ The plugin uses Mattermost's **message attachments** API (same approach as GitHu
 - `https://www.instagram.com/p/abc123/`
 - `https://www.instagram.com/reel/abc123/`
 
+### Reddit
+
+- `https://www.reddit.com/r/subreddit/comments/abc123/post_slug/`
+- `https://old.reddit.com/r/subreddit/comments/abc123/` (also `np.`, `new.`, no subdomain)
+- `https://redd.it/abc123` (short link)
+- `https://www.reddit.com/r/subreddit/s/xxxxxxxxxx` (mobile share link — resolved via HTTP redirect)
+
+Comment permalinks (`/comments/<id>/<slug>/<commentid>/`) preview the parent post — matching Slack's behavior.
+
 ### Generic Links (Fallback)
 
 Any other URL not matching a platform above will get a fallback preview using Open Graph meta tags (`og:title`, `og:description`, `og:image`), with `<title>` and `<meta name="description">` as secondary fallbacks. This covers news sites, blogs, and other websites that Mattermost's built-in preview may not handle well.
@@ -87,6 +96,9 @@ Each preview displays (where available per platform):
 - **Post content** - Text content with HTML formatting converted to plain text
 - **Media** - Images or video thumbnails (if present)
 - **Poll information** - Poll vote count and status (Mastodon, Bluesky)
+- **Engagement counts** - Score and comment count shown in the footer (Reddit)
+- **Subreddit branding** - Reddit previews show the community icon and `r/subreddit` name in the author row
+- **NSFW handling** - Reddit posts marked `over_18` get a 🔞 prefix on the title and have their preview image suppressed
 - **Link** - Click-through to the original post
 - **URL Previews** - If a post contains a link to a url, it will fetch a preview for that url too
 - **Reply context** - For Mastodon replies, shows the parent post being replied to
@@ -128,6 +140,32 @@ Look at this: https://bsky.app/profile/someone.bsky.social/post/abc123
 
 The plugin will automatically add a rich preview below your message.
 
+## Configuration
+
+All configuration is optional — the plugin generates previews everywhere by default. The following controls are available under **System Console > Plugins > Social Previews**:
+
+### Disabled Domains
+
+A newline- or comma-separated list of hostnames that should never generate a preview. Matching is case-insensitive and includes all subdomains — entering `example.com` also blocks `news.example.com`.
+
+Useful for internal hosts, paywalled sites you don't want auto-fetched, or platforms whose preview output you find noisy.
+
+### Excluded Channels
+
+A newline- or comma-separated list of channel IDs where the plugin will skip preview generation entirely. When a channel is on this list, the plugin also suppresses Mattermost's built-in link unfurler for any message that contains a URL, so the channel stays preview-free regardless of who would have rendered the link.
+
+### Per-channel toggle via slash command
+
+Channel admins (or anyone, depending on your command permissions) can flip previews on or off in the current channel without touching the System Console:
+
+```
+/social-previews disable   # turn previews off in this channel
+/social-previews enable    # turn them back on
+/social-previews status    # check current state
+```
+
+Toggles made via the slash command are stored separately from the System Console list and combined with it — a channel is excluded if **either** source lists it. If a channel is excluded via the System Console, the slash command will tell you that an admin must remove it there.
+
 ## Limitations
 
 1. **Public posts only** - The plugin can only preview public posts (no authentication)
@@ -151,6 +189,7 @@ The plugin will automatically add a rich preview below your message.
 | [server/threads.go](server/threads.go) | Threads preview via oEmbed |
 | [server/tiktok.go](server/tiktok.go) | TikTok preview via oEmbed |
 | [server/instagram.go](server/instagram.go) | Instagram preview via oEmbed |
+| [server/reddit.go](server/reddit.go) | Reddit preview via public JSON API; resolves `/s/` share-link redirects |
 | [server/opengraph.go](server/opengraph.go) | Generic fallback preview via Open Graph meta tags + noembed.com fallback |
 | [server/types.go](server/types.go) | Mastodon API data structures |
 | [server/url_utils.go](server/url_utils.go) | URL pattern matching and parsing |

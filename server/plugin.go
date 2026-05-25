@@ -101,6 +101,10 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	instagramURLs := extractInstagramURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Instagram URLs", "count", len(instagramURLs), "urls", instagramURLs)
 
+	// Extract Reddit URLs from post
+	redditURLs := extractRedditURLs(cleanMessage)
+	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Reddit URLs", "count", len(redditURLs), "urls", redditURLs)
+
 	// Filter out URLs whose host matches the admin-configured disable list
 	disabledDomains := p.getConfiguration().disabledDomainsParsed
 	mastodonURLs = filterDisabledDomains(mastodonURLs, disabledDomains)
@@ -109,15 +113,17 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	blueskyURLs = filterDisabledDomains(blueskyURLs, disabledDomains)
 	twitterURLs = filterDisabledDomains(twitterURLs, disabledDomains)
 	instagramURLs = filterDisabledDomains(instagramURLs, disabledDomains)
+	redditURLs = filterDisabledDomains(redditURLs, disabledDomains)
 
 	// Also extract generic URLs for fallback OG previews
-	handledURLs := make([]string, 0, len(mastodonURLs)+len(threadsURLs)+len(tiktokURLs)+len(blueskyURLs)+len(twitterURLs)+len(instagramURLs))
+	handledURLs := make([]string, 0, len(mastodonURLs)+len(threadsURLs)+len(tiktokURLs)+len(blueskyURLs)+len(twitterURLs)+len(instagramURLs)+len(redditURLs))
 	handledURLs = append(handledURLs, mastodonURLs...)
 	handledURLs = append(handledURLs, threadsURLs...)
 	handledURLs = append(handledURLs, tiktokURLs...)
 	handledURLs = append(handledURLs, blueskyURLs...)
 	handledURLs = append(handledURLs, twitterURLs...)
 	handledURLs = append(handledURLs, instagramURLs...)
+	handledURLs = append(handledURLs, redditURLs...)
 
 	// Exclude internal Mattermost links (the server handles its own permalinks)
 	siteURL := ""
@@ -128,7 +134,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	genericURLs = filterDisabledDomains(genericURLs, disabledDomains)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted generic URLs", "count", len(genericURLs), "urls", genericURLs)
 
-	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(genericURLs) == 0 {
+	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(redditURLs) == 0 && len(genericURLs) == 0 {
 		p.API.LogInfo("SOCIAL PREVIEWS: No preview URLs found, skipping")
 		return post, ""
 	}
@@ -280,6 +286,22 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched Instagram post", "url", url, "title", igPost.Title)
 
 		attachment := buildInstagramAttachment(igPost, url)
+		attachments = append(attachments, attachment)
+	}
+
+	// Fetch data for each Reddit URL
+	for _, url := range redditURLs {
+		p.API.LogInfo("SOCIAL PREVIEWS: Fetching Reddit post", "url", url)
+
+		redditPost, err := fetchRedditPostFromURL(url)
+		if err != nil {
+			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch Reddit post", "url", url, "error", err.Error())
+			continue
+		}
+
+		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched Reddit post", "url", url, "title", redditPost.Title)
+
+		attachment := buildRedditAttachment(redditPost, url)
 		attachments = append(attachments, attachment)
 	}
 
