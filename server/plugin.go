@@ -1,12 +1,21 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
 )
+
+// previewError records a single fetch failure so we can surface it to the
+// posting user via an ephemeral message after the hook returns.
+type previewError struct {
+	platform string
+	url      string
+	err      error
+}
 
 // Plugin implements the interface expected by the Mattermost server to communicate between the server and plugin processes.
 type Plugin struct {
@@ -141,12 +150,14 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 	// Fetch data for each Mastodon URL
 	attachments := []*model.SlackAttachment{}
+	fetchErrors := []previewError{}
 	for _, url := range mastodonURLs {
 		p.API.LogInfo("SOCIAL PREVIEWS: Fetching Mastodon post", "url", url)
 
 		mastodonPost, err := p.fetchMastodonPost(url)
 		if err != nil {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch", "url", url, "error", err.Error())
+			fetchErrors = append(fetchErrors, previewError{platform: "Mastodon", url: url, err: err})
 			continue
 		}
 
@@ -160,6 +171,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 				parentPost, err := p.fetchMastodonStatus(instanceURL, *mastodonPost.InReplyToID)
 				if err != nil {
 					p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch parent post", "parentID", *mastodonPost.InReplyToID, "error", err.Error())
+					fetchErrors = append(fetchErrors, previewError{platform: "Mastodon (parent post)", url: url, err: err})
 				} else {
 					parentAttachment := buildAttachment(parentPost, parentPost.URL, "")
 					attachments = append(attachments, parentAttachment)
@@ -180,6 +192,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 			embeddedPost, err := p.fetchMastodonPost(embeddedURL)
 			if err != nil {
 				p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch embedded post", "url", embeddedURL, "error", err.Error())
+				fetchErrors = append(fetchErrors, previewError{platform: "Mastodon (quoted post)", url: embeddedURL, err: err})
 				continue
 			}
 			embeddedAttachment := buildAttachment(embeddedPost, embeddedURL, "")
@@ -194,6 +207,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		threadsPost, err := fetchThreadsPost(url)
 		if err != nil {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch Threads post", "url", url, "error", err.Error())
+			fetchErrors = append(fetchErrors, previewError{platform: "Threads", url: url, err: err})
 			continue
 		}
 
@@ -214,11 +228,13 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 			resolvedURL, resolveErr := resolveTikTokForOEmbed(url)
 			if resolveErr != nil {
 				p.API.LogWarn("SOCIAL PREVIEWS: Failed to resolve TikTok URL", "url", url, "error", resolveErr.Error())
+				fetchErrors = append(fetchErrors, previewError{platform: "TikTok", url: url, err: resolveErr})
 				continue
 			}
 			oembed, err = fetchTikTokOEmbed(resolvedURL)
 			if err != nil {
 				p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch TikTok video", "url", url, "error", err.Error())
+				fetchErrors = append(fetchErrors, previewError{platform: "TikTok", url: url, err: err})
 				continue
 			}
 		}
@@ -236,12 +252,14 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		handle, rkey, ok := parseBlueskyURL(url)
 		if !ok {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to parse Bluesky URL", "url", url)
+			fetchErrors = append(fetchErrors, previewError{platform: "Bluesky", url: url, err: fmt.Errorf("could not parse URL")})
 			continue
 		}
 
 		bskyPost, err := fetchBlueskyPost(handle, rkey)
 		if err != nil {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch Bluesky post", "url", url, "error", err.Error())
+			fetchErrors = append(fetchErrors, previewError{platform: "Bluesky", url: url, err: err})
 			continue
 		}
 
@@ -258,12 +276,14 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		username, tweetID, ok := parseTwitterURL(url)
 		if !ok {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to parse Twitter/X URL", "url", url)
+			fetchErrors = append(fetchErrors, previewError{platform: "Twitter/X", url: url, err: fmt.Errorf("could not parse URL")})
 			continue
 		}
 
 		tweet, err := fetchTwitterPost(username, tweetID)
 		if err != nil {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch Twitter/X post", "url", url, "error", err.Error())
+			fetchErrors = append(fetchErrors, previewError{platform: "Twitter/X", url: url, err: err})
 			continue
 		}
 
@@ -280,6 +300,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		igPost, err := fetchInstagramPost(url)
 		if err != nil {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch Instagram post", "url", url, "error", err.Error())
+			fetchErrors = append(fetchErrors, previewError{platform: "Instagram", url: url, err: err})
 			continue
 		}
 
@@ -296,6 +317,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		redditPost, err := fetchRedditPostFromURL(url)
 		if err != nil {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch Reddit post", "url", url, "error", err.Error())
+			fetchErrors = append(fetchErrors, previewError{platform: "Reddit", url: url, err: err})
 			continue
 		}
 
@@ -344,7 +366,35 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		p.API.LogInfo("SOCIAL PREVIEWS: ✅ Attachments added successfully!")
 	}
 
+	// Send a single ephemeral to the poster summarizing any fetch failures, so
+	// they can see (privately) why a preview they were expecting didn't appear.
+	if len(fetchErrors) > 0 {
+		p.sendPreviewErrorEphemeral(post, fetchErrors)
+	}
+
 	return post, ""
+}
+
+// sendPreviewErrorEphemeral posts a private message to the user who triggered
+// MessageWillBePosted, listing any preview fetches that failed. Visible only to
+// them.
+func (p *Plugin) sendPreviewErrorEphemeral(post *model.Post, errs []previewError) {
+	var b strings.Builder
+	if len(errs) == 1 {
+		fmt.Fprintf(&b, "⚠️ Couldn't generate a **%s** preview for %s\n", errs[0].platform, errs[0].url)
+		fmt.Fprintf(&b, "Error: `%s`", errs[0].err.Error())
+	} else {
+		b.WriteString("⚠️ Couldn't generate previews for the following URLs in your message:\n")
+		for _, e := range errs {
+			fmt.Fprintf(&b, "- **%s** — %s\n  `%s`\n", e.platform, e.url, e.err.Error())
+		}
+	}
+	b.WriteString("\n_Only you can see this message._")
+
+	p.API.SendEphemeralPost(post.UserId, &model.Post{
+		ChannelId: post.ChannelId,
+		Message:   b.String(),
+	})
 }
 
 // See https://developers.mattermost.com/extend/plugins/server/reference/

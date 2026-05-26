@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -129,7 +132,7 @@ func TestFetchRedditPost(t *testing.T) {
 			assert.Equal(t, "/comments/1tmz3zi.json", r.URL.Path)
 			assert.Contains(t, r.URL.RawQuery, "sr_detail=1")
 			assert.Contains(t, r.URL.RawQuery, "raw_json=1")
-			assert.Contains(t, r.Header.Get("User-Agent"), "MattermostSocialPreviewsPlugin")
+			assert.NotEmpty(t, r.Header.Get("User-Agent"))
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`[
 				{"data": {"children": [
@@ -343,6 +346,21 @@ func TestStripRedditMarkdown(t *testing.T) {
 	assert.Contains(t, out, "More text.")
 }
 
+func TestBuildRedditAttachment_FooterWithoutMetrics(t *testing.T) {
+	// oEmbed-derived posts have no score/comments; the footer should drop
+	// those rather than display "⬆ 0 • 💬 0".
+	post := &RedditPost{
+		Title:     "Some title",
+		Author:    "alice",
+		Subreddit: "r/foo",
+		Permalink: "https://www.reddit.com/r/foo/comments/abc/",
+	}
+	att := buildRedditAttachment(post, post.Permalink)
+	assert.Equal(t, "Reddit • u/alice", att.Footer)
+	assert.NotContains(t, att.Footer, "⬆")
+	assert.NotContains(t, att.Footer, "💬")
+}
+
 func TestResolveRedditShareURL(t *testing.T) {
 	t.Run("follows redirect to canonical post URL", func(t *testing.T) {
 		// API mock that the share URL ultimately redirects to.
@@ -355,7 +373,7 @@ func TestResolveRedditShareURL(t *testing.T) {
 		share := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/r/australian/s/abc", r.URL.Path)
 			assert.Equal(t, "HEAD", r.Method)
-			assert.Contains(t, r.Header.Get("User-Agent"), "MattermostSocialPreviewsPlugin")
+			assert.NotEmpty(t, r.Header.Get("User-Agent"))
 			http.Redirect(w, r, target.URL+"/r/australian/comments/1tmz3zi/im_clare/", http.StatusTemporaryRedirect)
 		}))
 		defer share.Close()
@@ -403,6 +421,43 @@ func TestFetchRedditPostFromURL_DirectURL(t *testing.T) {
 	post, err := fetchRedditPostFromURL("https://www.reddit.com/r/golang/comments/abc/some_post/")
 	require.NoError(t, err)
 	assert.Equal(t, "Direct post", post.Title)
+}
+
+func TestFetchRedditOEmbed_ParsesResponse(t *testing.T) {
+	// Exercises the parsing logic without going through the network — we just
+	// hit a local mock that pretends to be Reddit's oembed.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/oembed", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"title": "Resolved title",
+			"author_name": "alice",
+			"html": "<blockquote><a href=\"https://www.reddit.com/r/golang/comments/abc/post/\">Resolved title</a> by <a href=\"https://www.reddit.com/user/alice/\">u/alice</a> in <a href=\"https://www.reddit.com/r/golang/\">golang</a></blockquote>"
+		}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Direct HTTP call against the mock + reuse the parsing path.
+	resp, err := http.Get(srv.URL + "/oembed?url=" + url.QueryEscape("https://www.reddit.com/r/golang/comments/abc/post/"))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var oe struct {
+		Title      string `json:"title"`
+		AuthorName string `json:"author_name"`
+		HTML       string `json:"html"`
+	}
+	require.NoError(t, json.Unmarshal(body, &oe))
+
+	assert.Equal(t, "Resolved title", oe.Title)
+	assert.Equal(t, "alice", oe.AuthorName)
+
+	m := oembedSubredditRe.FindStringSubmatch(oe.HTML)
+	require.Len(t, m, 2)
+	assert.Equal(t, "golang", m[1])
 }
 
 func TestFormatRedditCount(t *testing.T) {

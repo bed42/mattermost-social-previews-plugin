@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -28,10 +29,17 @@ var redditPatterns = []*regexp.Regexp{
 // redditAPIBase is the base URL for Reddit's public JSON API. Override in tests.
 var redditAPIBase = "https://www.reddit.com"
 
-// redditUserAgent is sent on every Reddit API request. Reddit asks bots to
-// identify themselves with a unique UA — a generic "Mozilla" string is rate
-// limited far more aggressively.
-const redditUserAgent = "MattermostSocialPreviewsPlugin/1.0 (+https://github.com/bednar-z/mattermost-social-previews-plugin)"
+// redditAPIFallback is tried when redditAPIBase returns 403/429. Reddit's
+// edge filtering between www and old subdomains is sometimes inconsistent —
+// servers blocked from one can occasionally reach the other.
+var redditAPIFallback = "https://old.reddit.com"
+
+// redditUserAgent identifies the request as a real Chrome browser. Reddit
+// aggressively 403s requests from cloud/Docker IPs that announce themselves
+// as bots (including Slackbot, Discordbot, our own previous UA, etc.); a
+// browser-style UA + Accept headers is the only thing that reliably gets a
+// 200 from many hosting providers.
+const redditUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 // extractRedditURLs finds all Reddit post URLs in the given text.
 func extractRedditURLs(text string) []string {
@@ -91,24 +99,118 @@ func resolveRedditShareURL(rawURL string) (string, error) {
 	return final, nil
 }
 
-// fetchRedditPostFromURL is the single entry point for the plugin hook: it
-// transparently resolves share links, parses the post ID, and fetches. Any
-// URL that doesn't yield a post ID directly is treated as a share link and
-// resolved via HTTP redirect before retrying the parse.
+// fetchRedditPostFromURL is the single entry point for the plugin hook. It
+// resolves share links, parses the post ID, tries the rich JSON API, then
+// falls back to the oEmbed endpoint when Reddit's main API is blocked (some
+// cloud/Docker IP ranges are 403'd at the CDN; /oembed lives on different
+// infrastructure and is often still reachable).
 func fetchRedditPostFromURL(rawURL string) (*RedditPost, error) {
-	if _, postID, ok := parseRedditURL(rawURL); ok {
-		return fetchRedditPost(postID)
+	subreddit, postID, ok := parseRedditURL(rawURL)
+	canonicalURL := rawURL
+	if !ok {
+		resolved, err := resolveRedditShareURL(rawURL)
+		if err != nil {
+			return nil, err
+		}
+		canonicalURL = resolved
+		subreddit, postID, ok = parseRedditURL(resolved)
+		if !ok {
+			return nil, fmt.Errorf("invalid Reddit URL after redirect: %s", resolved)
+		}
 	}
-	resolved, err := resolveRedditShareURL(rawURL)
-	if err != nil {
+
+	// Primary path: rich JSON listing.
+	post, err := fetchRedditPost(postID)
+	if err == nil {
+		return post, nil
+	}
+
+	// Fallback path: oEmbed. Only helps for the IP-block case; for genuine
+	// 404s / private posts we let the original error propagate.
+	if !isRedditBlocked(err) {
 		return nil, err
 	}
-	_, postID, ok := parseRedditURL(resolved)
-	if !ok {
-		return nil, fmt.Errorf("invalid Reddit URL after redirect: %s", resolved)
+
+	// oEmbed needs a /r/<sub>/comments/<id>/ form. Synthesize one if the
+	// input was a redd.it shortlink (sub is unknown — Reddit routes by ID
+	// anyway, so a placeholder works).
+	oembedTargetURL := canonicalURL
+	if subreddit == "" || !strings.Contains(oembedTargetURL, "/comments/") {
+		oembedTargetURL = fmt.Sprintf("https://www.reddit.com/r/_/comments/%s/", postID)
 	}
-	return fetchRedditPost(postID)
+
+	oePost, oeErr := fetchRedditOEmbed(oembedTargetURL)
+	if oeErr != nil {
+		// Surface the original (more informative) JSON-API error.
+		return nil, err
+	}
+	return oePost, nil
 }
+
+// fetchRedditOEmbed calls https://www.reddit.com/oembed for a canonical post
+// URL and returns a partially-populated RedditPost. The oEmbed response only
+// gives us title, author, and (parsed out of the embed HTML) the subreddit —
+// no body text, no image, no score. It's the no-rich-data fallback for when
+// Reddit's main API is blocked.
+func fetchRedditOEmbed(canonicalURL string) (*RedditPost, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	apiURL := "https://www.reddit.com/oembed?url=" + url.QueryEscape(canonicalURL)
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create oembed request: %w", err)
+	}
+	req.Header.Set("User-Agent", redditUserAgent)
+	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch oembed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("oembed unexpected status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read oembed response: %w", err)
+	}
+
+	var oe struct {
+		Title      string `json:"title"`
+		AuthorName string `json:"author_name"`
+		HTML       string `json:"html"`
+	}
+	if err := json.Unmarshal(body, &oe); err != nil {
+		return nil, fmt.Errorf("failed to parse oembed response: %w", err)
+	}
+	if oe.Title == "" {
+		return nil, fmt.Errorf("oembed response missing title")
+	}
+
+	post := &RedditPost{
+		Title:     oe.Title,
+		Author:    oe.AuthorName,
+		Permalink: canonicalURL,
+	}
+
+	// The embed HTML contains an anchor to the real /r/<sub>/ path; pull
+	// the subreddit name out of it so the author row in the preview lines
+	// up with what you'd get from the JSON API.
+	if m := oembedSubredditRe.FindStringSubmatch(oe.HTML); len(m) == 2 {
+		post.Subreddit = "r/" + m[1]
+	}
+
+	return post, nil
+}
+
+// oembedSubredditRe extracts the subreddit from the anchor Reddit injects
+// into its oembed `html` field (e.g. <a href="https://www.reddit.com/r/x/">).
+var oembedSubredditRe = regexp.MustCompile(`reddit\.com/r/([a-zA-Z0-9_]+)/?"`)
 
 // RedditPost holds the fields we render in a preview.
 type RedditPost struct {
@@ -129,18 +231,37 @@ type RedditPost struct {
 	LinkFlair     string
 }
 
-// fetchRedditPost fetches a Reddit post by ID via the public JSON API.
+// fetchRedditPost fetches a Reddit post by ID via the public JSON API. If
+// the primary host returns 403/429, it retries against old.reddit.com.
 func fetchRedditPost(postID string) (*RedditPost, error) {
+	body, err := redditGetJSON(redditAPIBase, postID)
+	if err != nil {
+		if isRedditBlocked(err) && redditAPIFallback != "" && redditAPIFallback != redditAPIBase {
+			body, err = redditGetJSON(redditAPIFallback, postID)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return parseRedditResponse(body)
+}
+
+// redditGetJSON performs a single GET against /comments/<id>.json on the
+// given Reddit host and returns the response body. Errors include the host
+// so the caller can tell which attempt failed.
+func redditGetJSON(host, postID string) ([]byte, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	apiURL := fmt.Sprintf("%s/comments/%s.json?sr_detail=1&raw_json=1&limit=1", redditAPIBase, postID)
+	apiURL := fmt.Sprintf("%s/comments/%s.json?sr_detail=1&raw_json=1&limit=1", host, postID)
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("User-Agent", redditUserAgent)
-	req.Header.Set("Accept", "application/json")
+	// Browsers always send these — omitting them is a common bot tell.
+	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -149,15 +270,20 @@ func fetchRedditPost(postID string) (*RedditPost, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d (host=%s)", resp.StatusCode, host)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
+	return io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
+}
 
-	return parseRedditResponse(body)
+// isRedditBlocked reports whether err looks like Reddit's anti-bot block
+// (403/429) — the only cases worth retrying against the fallback host.
+func isRedditBlocked(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "status code: 403") || strings.Contains(msg, "status code: 429")
 }
 
 // parseRedditResponse parses the Reddit JSON listing returned by /comments/<id>.json
@@ -332,6 +458,17 @@ func buildRedditAttachment(post *RedditPost, originalURL string) *model.SlackAtt
 	bodyText := stripRedditMarkdown(post.Selftext)
 	bodyText = truncate(strings.TrimSpace(bodyText), 600)
 
+	// When we only have oEmbed data (Reddit's main API blocked the request),
+	// score and comments aren't available — drop them from the footer rather
+	// than misrepresent the post as having zero engagement.
+	footer := "Reddit"
+	if post.Score > 0 || post.NumComments > 0 {
+		footer += fmt.Sprintf(" • ⬆ %s • 💬 %s", formatRedditCount(post.Score), formatRedditCount(post.NumComments))
+	}
+	if post.Author != "" {
+		footer += " • u/" + post.Author
+	}
+
 	attachment := &model.SlackAttachment{
 		Fallback:   fmt.Sprintf("Reddit: %s", post.Title),
 		Color:      "#FF4500", // Reddit orange
@@ -341,7 +478,7 @@ func buildRedditAttachment(post *RedditPost, originalURL string) *model.SlackAtt
 		Title:      title,
 		TitleLink:  permalink,
 		Text:       wrapText(bodyText, previewWrapWidth),
-		Footer:     fmt.Sprintf("Reddit • ⬆ %s • 💬 %s • u/%s", formatRedditCount(post.Score), formatRedditCount(post.NumComments), post.Author),
+		Footer:     footer,
 		FooterIcon: "https://www.redditstatic.com/icon.png",
 	}
 
