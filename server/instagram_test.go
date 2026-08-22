@@ -231,13 +231,16 @@ func TestBuildInstagramAttachment(t *testing.T) {
 			Type:        "instapp:photo",
 		}
 
-		att := buildInstagramAttachment(post, "https://www.instagram.com/p/ABC123/")
+		att := buildInstagramAttachment(post, "https://www.instagram.com/p/ABC123/", "https://mm.example.com")
 
 		assert.Equal(t, "#E1306C", att.Color)
 		assert.Equal(t, "Alice", att.AuthorName)
 		assert.Equal(t, "Beautiful sunset over the ocean", att.Text)
 		assert.Equal(t, "https://scontent.cdninstagram.com/photo.jpg", att.ImageURL)
 		assert.Equal(t, "Instagram Preview", att.Footer)
+		// Footer icon is served from the plugin's public dir (browsers block
+		// hotlinking Instagram's own static assets)
+		assert.Equal(t, "https://mm.example.com/plugins/social-previews/public/instagram-icon.png", att.FooterIcon)
 		// No fields for a photo post
 		assert.Empty(t, att.Fields)
 	})
@@ -252,12 +255,14 @@ func TestBuildInstagramAttachment(t *testing.T) {
 			Type:        "video",
 		}
 
-		att := buildInstagramAttachment(post, "https://www.instagram.com/reel/XYZ789/")
+		att := buildInstagramAttachment(post, "https://www.instagram.com/reel/XYZ789/", "https://mm.example.com/")
 
 		assert.Equal(t, "Bob", att.AuthorName)
 		assert.Equal(t, "Instagram Reel Preview", att.Footer)
 		require.Len(t, att.Fields, 1)
 		assert.Equal(t, "🎬 Reel", att.Fields[0].Title)
+		// Trailing slash on siteURL must not produce a double slash
+		assert.Equal(t, "https://mm.example.com/plugins/social-previews/public/instagram-icon.png", att.FooterIcon)
 	})
 
 	t.Run("fallback URL when og:url missing", func(t *testing.T) {
@@ -266,9 +271,11 @@ func TestBuildInstagramAttachment(t *testing.T) {
 			Description: "Some post",
 		}
 
-		att := buildInstagramAttachment(post, "https://www.instagram.com/p/FALLBACK/")
+		att := buildInstagramAttachment(post, "https://www.instagram.com/p/FALLBACK/", "")
 
 		assert.Equal(t, "https://www.instagram.com/p/FALLBACK/", att.AuthorLink)
 		assert.Equal(t, "https://www.instagram.com/p/FALLBACK/", att.TitleLink)
+		// Without a siteURL the icon falls back to Instagram's hosted asset
+		assert.Equal(t, "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png", att.FooterIcon)
 	})
 }

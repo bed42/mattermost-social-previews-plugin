@@ -40,6 +40,10 @@ func fetchOGPreview(rawURL string) (*OGPreview, error) {
 	// Use Slackbot UA — many sites/CDNs (especially Cloudflare) whitelist known
 	// link-preview bots but block generic or unknown User-Agents.
 	req.Header.Set("User-Agent", "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)")
+	// Pin the response language — sites like YouTube localize metadata from the
+	// server IP's geolocation when no Accept-Language is sent, so a server hosted
+	// abroad gets titles and descriptions in that country's language.
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
 	resp, err := client.Do(req)
 	if err != nil {

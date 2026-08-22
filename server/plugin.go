@@ -114,6 +114,10 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	redditURLs := extractRedditURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Reddit URLs", "count", len(redditURLs), "urls", redditURLs)
 
+	// Extract YouTube URLs from post
+	youtubeURLs := extractYouTubeURLs(cleanMessage)
+	p.API.LogInfo("SOCIAL PREVIEWS: Extracted YouTube URLs", "count", len(youtubeURLs), "urls", youtubeURLs)
+
 	// Filter out URLs whose host matches the admin-configured disable list
 	disabledDomains := p.getConfiguration().disabledDomainsParsed
 	mastodonURLs = filterDisabledDomains(mastodonURLs, disabledDomains)
@@ -123,9 +127,10 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	twitterURLs = filterDisabledDomains(twitterURLs, disabledDomains)
 	instagramURLs = filterDisabledDomains(instagramURLs, disabledDomains)
 	redditURLs = filterDisabledDomains(redditURLs, disabledDomains)
+	youtubeURLs = filterDisabledDomains(youtubeURLs, disabledDomains)
 
 	// Also extract generic URLs for fallback OG previews
-	handledURLs := make([]string, 0, len(mastodonURLs)+len(threadsURLs)+len(tiktokURLs)+len(blueskyURLs)+len(twitterURLs)+len(instagramURLs)+len(redditURLs))
+	handledURLs := make([]string, 0, len(mastodonURLs)+len(threadsURLs)+len(tiktokURLs)+len(blueskyURLs)+len(twitterURLs)+len(instagramURLs)+len(redditURLs)+len(youtubeURLs))
 	handledURLs = append(handledURLs, mastodonURLs...)
 	handledURLs = append(handledURLs, threadsURLs...)
 	handledURLs = append(handledURLs, tiktokURLs...)
@@ -133,6 +138,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	handledURLs = append(handledURLs, twitterURLs...)
 	handledURLs = append(handledURLs, instagramURLs...)
 	handledURLs = append(handledURLs, redditURLs...)
+	handledURLs = append(handledURLs, youtubeURLs...)
 
 	// Exclude internal Mattermost links (the server handles its own permalinks)
 	siteURL := ""
@@ -143,7 +149,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	genericURLs = filterDisabledDomains(genericURLs, disabledDomains)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted generic URLs", "count", len(genericURLs), "urls", genericURLs)
 
-	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(redditURLs) == 0 && len(genericURLs) == 0 {
+	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(redditURLs) == 0 && len(youtubeURLs) == 0 && len(genericURLs) == 0 {
 		p.API.LogInfo("SOCIAL PREVIEWS: No preview URLs found, skipping")
 		return post, ""
 	}
@@ -306,7 +312,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched Instagram post", "url", url, "title", igPost.Title)
 
-		attachment := buildInstagramAttachment(igPost, url)
+		attachment := buildInstagramAttachment(igPost, url, siteURL)
 		attachments = append(attachments, attachment)
 	}
 
@@ -324,6 +330,23 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched Reddit post", "url", url, "title", redditPost.Title)
 
 		attachment := buildRedditAttachment(redditPost, url)
+		attachments = append(attachments, attachment)
+	}
+
+	// Fetch data for each YouTube URL
+	for _, url := range youtubeURLs {
+		p.API.LogInfo("SOCIAL PREVIEWS: Fetching YouTube video", "url", url)
+
+		oembed, err := fetchYouTubeOEmbed(url)
+		if err != nil {
+			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch YouTube video", "url", url, "error", err.Error())
+			fetchErrors = append(fetchErrors, previewError{platform: "YouTube", url: url, err: err})
+			continue
+		}
+
+		p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched YouTube video", "url", url, "title", oembed.Title)
+
+		attachment := buildYouTubeAttachment(oembed, url)
 		attachments = append(attachments, attachment)
 	}
 
