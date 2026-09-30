@@ -137,9 +137,9 @@ func findManifest() (*model.Manifest, error) {
 		manifest.Version = strings.TrimPrefix(version, "v")
 	}
 
-	// If no release notes specified, generate one from the latest tag, if present.
-	if manifest.ReleaseNotesURL == "" && BuildTagLatest != "" {
-		manifest.ReleaseNotesURL = manifest.HomepageURL + "releases/tag/" + BuildTagLatest
+	// If no release notes specified, point at the release matching the manifest version.
+	if manifest.ReleaseNotesURL == "" && manifest.HomepageURL != "" && manifest.Version != "" {
+		manifest.ReleaseNotesURL = strings.TrimSuffix(manifest.HomepageURL, "/") + "/releases/tag/v" + manifest.Version
 	}
 
 	return &manifest, nil

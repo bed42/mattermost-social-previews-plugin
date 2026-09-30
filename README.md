@@ -2,11 +2,11 @@
 
 > **Disclaimer:** This project was built with the guidance of a human developer and implemented primarily by [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding assistant). I didn't have time to dev all of this by hand myself, but did have enough to guide Claude to do so! If LLM-assisted development is something you actively avoid, consider this your fair warning.
 
-A Mattermost plugin that automatically displays rich previews for social media URLs. Supports **Mastodon**, **Bluesky**, **Twitter/X**, **Threads**, **TikTok**, **Instagram**, and **Reddit**. Works on all platforms including **web, desktop, iOS, and Android**.
+A Mattermost plugin that automatically displays rich previews for social media URLs. Supports **Mastodon**, **Bluesky**, **Twitter/X**, **Threads**, **TikTok**, **Instagram**, **Reddit**, and other **ActivityPub** servers (Pleroma, Akkoma, Mangane, GoToSocial, Friendica, Lemmy, Misskey). Works on all platforms including **web, desktop, iOS, and Android**.
 
 ## Features
 
-- **Multi-platform** - Previews from Mastodon, Bluesky, Twitter/X, Threads, TikTok, Instagram, and Reddit
+- **Multi-platform** - Previews from Mastodon, Bluesky, Twitter/X, Threads, TikTok, Instagram, Reddit, and other ActivityPub servers
 - **Generic link previews** - Fallback Open Graph previews for any URL not handled by a platform-specific handler
 - **Cross-platform** - Works on all Mattermost clients (web, desktop, mobile)
 - **Automatic detection** - Detects social media URLs and generates previews inline
@@ -80,6 +80,15 @@ The plugin uses Mattermost's **message attachments** API (same approach as GitHu
 
 Comment permalinks (`/comments/<id>/<slug>/<commentid>/`) preview the parent post — matching Slack's behavior.
 
+### Other ActivityPub Servers
+
+- `https://instance/objects/<uuid>` and `https://instance/notice/<id>` (Pleroma, Akkoma, Mangane, Soapbox)
+- `https://instance/@user/statuses/<ULID>` (GoToSocial)
+- `https://instance/display/<guid>` (Friendica)
+- `https://instance/post/<n>`, `https://instance/comment/<n>` (Lemmy, PieFed, Mbin)
+
+These are fetched directly as ActivityStreams JSON (`Accept: application/activity+json`), and the author is looked up from `attributedTo`. If a Mastodon-style URL (e.g. Misskey `/notes/<id>`) fails via the Mastodon API, the plugin retries it as ActivityPub. Servers that require signed fetches ("authorized fetch") can't be previewed; `/post/` and `/comment/` URLs that turn out not to be ActivityPub fall back to a normal link preview.
+
 ### Generic Links (Fallback)
 
 Any other URL not matching a platform above will get a fallback preview using Open Graph meta tags (`og:title`, `og:description`, `og:image`), with `<title>` and `<meta name="description">` as secondary fallbacks. This covers news sites, blogs, and other websites that Mattermost's built-in preview may not handle well.
@@ -95,7 +104,7 @@ Each preview displays (where available per platform):
 - **Author information** - Display name, username, and avatar
 - **Post content** - Text content with HTML formatting converted to plain text
 - **Media** - Images or video thumbnails (if present)
-- **Poll information** - Poll vote count and status (Mastodon, Bluesky)
+- **Poll information** - Poll vote count and status (Mastodon, Bluesky, ActivityPub)
 - **Engagement counts** - Score and comment count shown in the footer (Reddit)
 - **Subreddit branding** - Reddit previews show the community icon and `r/subreddit` name in the author row
 - **NSFW handling** - Reddit posts marked `over_18` get a 🔞 prefix on the title and have their preview image suppressed

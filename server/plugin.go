@@ -114,6 +114,10 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	redditURLs := extractRedditURLs(cleanMessage)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted Reddit URLs", "count", len(redditURLs), "urls", redditURLs)
 
+	// Extract other ActivityPub (Pleroma/Akkoma/Mangane, GoToSocial, Friendica, Lemmy...) URLs from post
+	activityPubURLs := extractActivityPubURLs(cleanMessage)
+	p.API.LogInfo("SOCIAL PREVIEWS: Extracted ActivityPub URLs", "count", len(activityPubURLs), "urls", activityPubURLs)
+
 	// Filter out URLs whose host matches the admin-configured disable list
 	disabledDomains := p.getConfiguration().disabledDomainsParsed
 	mastodonURLs = filterDisabledDomains(mastodonURLs, disabledDomains)
@@ -123,9 +127,10 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	twitterURLs = filterDisabledDomains(twitterURLs, disabledDomains)
 	instagramURLs = filterDisabledDomains(instagramURLs, disabledDomains)
 	redditURLs = filterDisabledDomains(redditURLs, disabledDomains)
+	activityPubURLs = filterDisabledDomains(activityPubURLs, disabledDomains)
 
 	// Also extract generic URLs for fallback OG previews
-	handledURLs := make([]string, 0, len(mastodonURLs)+len(threadsURLs)+len(tiktokURLs)+len(blueskyURLs)+len(twitterURLs)+len(instagramURLs)+len(redditURLs))
+	handledURLs := make([]string, 0, len(mastodonURLs)+len(threadsURLs)+len(tiktokURLs)+len(blueskyURLs)+len(twitterURLs)+len(instagramURLs)+len(redditURLs)+len(activityPubURLs))
 	handledURLs = append(handledURLs, mastodonURLs...)
 	handledURLs = append(handledURLs, threadsURLs...)
 	handledURLs = append(handledURLs, tiktokURLs...)
@@ -133,6 +138,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	handledURLs = append(handledURLs, twitterURLs...)
 	handledURLs = append(handledURLs, instagramURLs...)
 	handledURLs = append(handledURLs, redditURLs...)
+	handledURLs = append(handledURLs, activityPubURLs...)
 
 	// Exclude internal Mattermost links (the server handles its own permalinks)
 	siteURL := ""
@@ -143,7 +149,7 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	genericURLs = filterDisabledDomains(genericURLs, disabledDomains)
 	p.API.LogInfo("SOCIAL PREVIEWS: Extracted generic URLs", "count", len(genericURLs), "urls", genericURLs)
 
-	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(redditURLs) == 0 && len(genericURLs) == 0 {
+	if len(mastodonURLs) == 0 && len(threadsURLs) == 0 && len(tiktokURLs) == 0 && len(blueskyURLs) == 0 && len(twitterURLs) == 0 && len(instagramURLs) == 0 && len(redditURLs) == 0 && len(activityPubURLs) == 0 && len(genericURLs) == 0 {
 		p.API.LogInfo("SOCIAL PREVIEWS: No preview URLs found, skipping")
 		return post, ""
 	}
@@ -157,6 +163,12 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		mastodonPost, err := p.fetchMastodonPost(url)
 		if err != nil {
 			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch", "url", url, "error", err.Error())
+			// Not every server matching these URL shapes speaks the Mastodon API
+			// (e.g. Misskey /notes/); fall back to fetching the ActivityPub object.
+			if apAttachment, apErr := p.buildActivityPubPreview(url); apErr == nil {
+				attachments = append(attachments, apAttachment)
+				continue
+			}
 			fetchErrors = append(fetchErrors, previewError{platform: "Mastodon", url: url, err: err})
 			continue
 		}
@@ -327,6 +339,26 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 		attachments = append(attachments, attachment)
 	}
 
+	// Fetch data for each non-Mastodon ActivityPub URL
+	for _, url := range activityPubURLs {
+		p.API.LogInfo("SOCIAL PREVIEWS: Fetching ActivityPub object", "url", url)
+
+		attachment, err := p.buildActivityPubPreview(url)
+		if err != nil {
+			p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch ActivityPub object", "url", url, "error", err.Error())
+			// These URL patterns are heuristic (e.g. /post/123), so fall back to
+			// an OG preview before reporting an error.
+			if preview, ogErr := fetchOGPreview(url); ogErr == nil {
+				attachments = append(attachments, buildOGAttachment(preview, url))
+				continue
+			}
+			fetchErrors = append(fetchErrors, previewError{platform: "Fediverse", url: url, err: err})
+			continue
+		}
+
+		attachments = append(attachments, attachment)
+	}
+
 	// Fallback: generic OG preview for unhandled URLs
 	for _, url := range genericURLs {
 		p.API.LogInfo("SOCIAL PREVIEWS: Fetching generic OG preview", "url", url)
@@ -373,6 +405,24 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	}
 
 	return post, ""
+}
+
+// buildActivityPubPreview fetches a fediverse post (and its author) as
+// ActivityStreams JSON and renders it. A failed author lookup is non-fatal.
+func (p *Plugin) buildActivityPubPreview(url string) (*model.SlackAttachment, error) {
+	obj, err := fetchActivityPubObject(url)
+	if err != nil {
+		return nil, err
+	}
+
+	actor, err := fetchActivityPubActor(obj)
+	if err != nil {
+		p.API.LogWarn("SOCIAL PREVIEWS: Failed to fetch ActivityPub actor", "url", url, "error", err.Error())
+		actor = nil
+	}
+
+	p.API.LogInfo("SOCIAL PREVIEWS: Successfully fetched ActivityPub object", "url", url, "type", obj.Type)
+	return buildActivityPubAttachment(obj, actor, url), nil
 }
 
 // sendPreviewErrorEphemeral posts a private message to the user who triggered
