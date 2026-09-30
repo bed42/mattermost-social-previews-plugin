@@ -14,6 +14,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 - **Instagram** - via oEmbed
 - **Reddit** - via Reddit public JSON API (`/comments/{id}.json?sr_detail=1&raw_json=1`)
 - **Other ActivityPub** (Pleroma/Akkoma/Mangane, GoToSocial, Friendica, Lemmy/PieFed, Misskey fallback) - via ActivityStreams JSON content negotiation (`Accept: application/activity+json`), author fetched from `attributedTo`
+- **YouTube** - via oEmbed (direct page scraping deliberately avoided: YouTube serves bots a metadata-free shell page localized to the server IP's country)
 
 ## Features
 
@@ -28,7 +29,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 ## Key Files
 
 | File | Role |
-|------|------|
+| ------ | ------ |
 | `server/plugin.go` | Entry point; `MessageWillBePosted` hook, `OnActivate`/`OnDeactivate` lifecycle |
 | `server/mastodon.go` | Mastodon API client, HTML stripping (`stripHTML`), attachment builder |
 | `server/bluesky.go` | Bluesky AT Protocol client and attachment builder |
@@ -39,6 +40,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 | `server/reddit.go` | Reddit preview via public JSON API; subreddit icon, score, comment count |
 | `server/activitypub.go` | Generic ActivityPub object/actor fetch + attachment builder; also fallback when Mastodon API fails |
 | `server/heic.go` | HEIC→JPEG conversion of post attachments via `gen2brain/heic` (WASM, CGO-free) |
+| `server/youtube.go` | YouTube preview via oEmbed |
 | `server/types.go` | Mastodon API data structures (`MastodonStatus`, `MastodonAccount`, `MastodonMedia`, etc.) |
 | `server/url_utils.go` | Regex-based URL detection and parsing for Mastodon URLs |
 | `server/api.go` | HTTP API routes (minimal - `/api/v1/hello`) |
@@ -54,6 +56,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 - Instagram: `https://www.instagram.com/p/id/`, `/reel/id/`
 - Reddit: `https://(www|old|np|new).reddit.com/r/sub/comments/id/[slug/]`, `https://redd.it/id`
 - ActivityPub: `/objects/{uuid}`, `/notice/{id}` (Pleroma/Akkoma/Mangane), `/@user/statuses/{ULID}` (GoToSocial), `/display/{guid}` (Friendica), `/post/{n}`, `/comment/{n}` (Lemmy etc.; falls back to OG if not AP)
+- YouTube: `https://(www|m).youtube.com/watch?v=id`, `https://youtu.be/id`, `/shorts/id`, `/live/id`
 
 ## Build
 

@@ -148,7 +148,10 @@ func cleanInstagramDescription(desc string) string {
 }
 
 // buildInstagramAttachment creates a Mattermost message attachment from an Instagram post.
-func buildInstagramAttachment(post *InstagramPost, originalURL string) *model.SlackAttachment {
+// siteURL is the Mattermost server's SiteURL, used to serve the footer icon from the
+// plugin's public dir — browsers refuse to hotlink Instagram's own static assets in
+// clients (the footer shows the alt text instead), so the icon is bundled with the plugin.
+func buildInstagramAttachment(post *InstagramPost, originalURL, siteURL string) *model.SlackAttachment {
 	// Parse author from og:title — format varies:
 	// Photos: "Username on Instagram: \"caption text\""
 	// Reels: "Username on Instagram: \"caption text\""
@@ -173,6 +176,11 @@ func buildInstagramAttachment(post *InstagramPost, originalURL string) *model.Sl
 		footerText = "Instagram Reel Preview"
 	}
 
+	footerIcon := "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png"
+	if siteURL != "" {
+		footerIcon = strings.TrimRight(siteURL, "/") + "/plugins/social-previews/public/instagram-icon.png"
+	}
+
 	attachment := &model.SlackAttachment{
 		Fallback:   fmt.Sprintf("Instagram: %s", caption),
 		Color:      "#E1306C", // Instagram gradient pink
@@ -182,7 +190,7 @@ func buildInstagramAttachment(post *InstagramPost, originalURL string) *model.Sl
 		TitleLink:  displayURL,
 		Text:       wrapText(caption, previewWrapWidth),
 		Footer:     footerText,
-		FooterIcon: "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
+		FooterIcon: footerIcon,
 	}
 
 	if post.ImageURL != "" {

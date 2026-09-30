@@ -1,10 +1,29 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestFetchOGPreview_SendsAcceptLanguage(t *testing.T) {
+	var gotLang string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotLang = r.Header.Get("Accept-Language")
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<html><head><meta property="og:title" content="Title"></head></html>`))
+	}))
+	defer server.Close()
+
+	preview, err := fetchOGPreview(server.URL)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Title", preview.Title)
+	assert.Equal(t, "en-US,en;q=0.9", gotLang)
+}
 
 func TestParseOGTags_FullOG(t *testing.T) {
 	html := `<html><head>
