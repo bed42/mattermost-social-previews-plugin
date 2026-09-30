@@ -27,6 +27,10 @@ type Plugin struct {
 	// configuration is the active plugin configuration. Consult getConfiguration and
 	// setConfiguration for usage.
 	configuration *configuration
+
+	// convertedHEICFiles holds IDs of files created by HEIC conversion in
+	// MessageWillBePosted, so MessageHasBeenPosted can refresh those posts.
+	convertedHEICFiles sync.Map
 }
 
 // OnActivate is invoked when the plugin is activated. If an error is returned, the plugin will be deactivated.
@@ -56,6 +60,10 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 	}()
 
 	p.API.LogInfo("SOCIAL PREVIEWS: MessageWillBePosted called", "message", post.Message)
+
+	// HEIC conversion is independent of link previews, so it runs even in
+	// channels excluded from previews.
+	p.convertHEICAttachments(post)
 
 	// Skip entirely if this channel is excluded (via System Console or /social-previews disable).
 	// If the message contains any URL, suppress Mattermost's built-in link unfurl by attaching an

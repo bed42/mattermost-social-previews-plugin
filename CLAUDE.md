@@ -21,6 +21,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 - **Media support**: First image shown inline; video thumbnails; links to all attachments when multiple exist
 - **Poll display**: Vote counts and expiration status (Mastodon, Bluesky)
 - **Link preview cards**: Open Graph metadata (title, description, image) for URLs shared in posts
+- **HEIC conversion**: HEIC/HEIF attachments converted to JPEG (quality 90) in `MessageWillBePosted` (setting `ConvertHEIC`, default on). Done at post time, not in `FileWillBeUploaded`, because the server ignores a replacement FileInfo from that hook on the streaming upload path. `MessageHasBeenPosted` then re-saves the post unchanged (after `heicRefreshDelay`) because the poster's client otherwise keeps showing its optimistic `.heic` until reload
 - **Cross-instance**: Works with any Mastodon-compatible instance
 - **Public-only**: No authentication required; only previews public posts
 
@@ -37,6 +38,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 | `server/instagram.go` | Instagram preview via oEmbed |
 | `server/reddit.go` | Reddit preview via public JSON API; subreddit icon, score, comment count |
 | `server/activitypub.go` | Generic ActivityPub object/actor fetch + attachment builder; also fallback when Mastodon API fails |
+| `server/heic.go` | HEIC→JPEG conversion of post attachments via `gen2brain/heic` (WASM, CGO-free) |
 | `server/types.go` | Mastodon API data structures (`MastodonStatus`, `MastodonAccount`, `MastodonMedia`, etc.) |
 | `server/url_utils.go` | Regex-based URL detection and parsing for Mastodon URLs |
 | `server/api.go` | HTTP API routes (minimal - `/api/v1/hello`) |

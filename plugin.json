@@ -33,6 +33,13 @@
         "type": "longtext",
         "help_text": "Channel IDs where previews should NOT be generated. Enter one channel ID per line, or separate with commas. Channels can also be toggled in-place with /social-previews disable in the channel itself; toggles made via the slash command are stored separately and combined with this list.",
         "default": ""
+      },
+      {
+        "key": "ConvertHEIC",
+        "display_name": "Convert HEIC Images to JPEG",
+        "type": "bool",
+        "help_text": "When enabled, HEIC/HEIF photos (the default iPhone format) attached to posts are converted to JPEG so they display on web and desktop clients. The converted image replaces the original on the post.",
+        "default": true
       }
     ]
   }

@@ -97,7 +97,32 @@ For sites behind bot protection (e.g. Cloudflare), the plugin uses a well-known 
 
 Internal Mattermost links (matching the server's SiteURL) are automatically excluded — Mattermost handles its own permalink rendering natively.
 
-## Preview Content
+## HEIC Image Conversion
+
+iPhones save photos as HEIC, which the iOS app can display but the web and desktop apps can't. When **Convert HEIC Images to JPEG** is enabled (the default; System Console → Plugins → Social Previews), HEIC/HEIF attachments are converted to JPEG as the post is created, and the JPEG replaces the original on the post so every client shows it inline with a thumbnail.
+
+- Decoding is pure Go (WASM, no cgo), so speed depends heavily on the server's CPU (see [timing](#conversion-timing) below).
+- JPEG quality is 90: visually indistinguishable, typically 1.5-3× the size of the HEIC original.
+- EXIF metadata (including GPS location) is not carried over; orientation is applied to the pixels.
+- iOS sometimes saves JPEGs under a `.heic` name; these are detected by content and just renamed to `.jpg`, with no re-encoding.
+- Only the poster's own uploads are converted. If conversion fails, the original HEIC is left attached.
+- The poster gets a private status message ("Converting HEIC image..., please wait") as soon as a HEIC is found, updated to say what was converted or renamed (or why it failed) when done. Decoding a 24MP iPhone photo can take several seconds on a modest server, during which the post is held.
+- About 2 seconds after posting, the plugin re-saves the post unchanged so the poster's own client swaps its local `.heic` for the converted file (it isn't marked as edited).
+- The original HEIC stays in file storage, unattached (the plugin API can't delete files).
+
+### Conversion timing
+
+The post is held while its HEIC attachments are converted, so this is the delay the poster sees before their message appears:
+
+| Machine | Image | Time |
+|---|---|---|
+| Apple M3 Max (14 cores), local dev | 12MP HEIC (4032×3024) | ~0.2 s (decode + JPEG encode only) |
+| Budget VPS: 4 vCPU "Common KVM Processor" @ 2.0 GHz, 10 GB RAM, swapping heavily | Real 24MP iPhone 16 photos | ~5 s (read + decode + encode + upload) |
+| Any machine | JPEG saved under a `.heic` name | Milliseconds (renamed, not re-encoded) |
+
+The VPS figures come from production logs (4.9 s and 5.2 s for two photos) on a server that was using about 3 GB of swap at the time; a server with free memory should do noticeably better. Decoding a 24MP photo needs a few hundred MB of working memory, so memory pressure matters as much as CPU speed.
+
+
 
 Each preview displays (where available per platform):
 

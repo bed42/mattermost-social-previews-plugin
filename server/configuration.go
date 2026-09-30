@@ -28,6 +28,10 @@ type configuration struct {
 	// via the /social-previews slash command, which is stored separately.
 	ExcludedChannels string
 
+	// ConvertHEIC replaces HEIC/HEIF image attachments with JPEG copies when a
+	// post is created, so web and desktop clients can display them.
+	ConvertHEIC bool
+
 	// disabledDomainsParsed is the lowercased, trimmed list derived from
 	// DisabledDomains. Populated in OnConfigurationChange so we don't re-parse
 	// on every message.
