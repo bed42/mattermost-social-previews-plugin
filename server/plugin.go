@@ -370,6 +370,8 @@ func (p *Plugin) MessageWillBePosted(c *plugin.Context, post *model.Post) (*mode
 			fetchErrors = append(fetchErrors, previewError{platform: "Fediverse", url: url, err: err})
 			continue
 		}
+		attachments = append(attachments, attachment)
+	}
 
 	// Fetch data for each YouTube URL
 	for _, url := range youtubeURLs {
