@@ -87,6 +87,15 @@ func resolveTikTokForOEmbed(rawURL string) (string, error) {
 	return loc, nil
 }
 
+// tiktokOEmbedAttempts and tiktokRetryDelay control retries of the oEmbed call.
+// TikTok's oEmbed endpoint randomly sheds load with 503 "overload-protect
+// triggered" (and occasionally 429) on roughly half of requests regardless of
+// client, so a few quick retries make previews reliable. Override in tests.
+var (
+	tiktokOEmbedAttempts = 4
+	tiktokRetryDelay     = 300 * time.Millisecond
+)
+
 // fetchTikTokOEmbed fetches oEmbed data for a TikTok video URL.
 func fetchTikTokOEmbed(videoURL string) (*TikTokOEmbed, error) {
 	client := &http.Client{
@@ -95,9 +104,19 @@ func fetchTikTokOEmbed(videoURL string) (*TikTokOEmbed, error) {
 
 	oembedURL := tiktokOEmbedBase + "?url=" + url.QueryEscape(videoURL)
 
-	resp, err := client.Get(oembedURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch TikTok oEmbed: %w", err)
+	var resp *http.Response
+	for attempt := 1; ; attempt++ {
+		var err error
+		resp, err = client.Get(oembedURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch TikTok oEmbed: %w", err)
+		}
+		retryable := resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests
+		if !retryable || attempt >= tiktokOEmbedAttempts {
+			break
+		}
+		resp.Body.Close()
+		time.Sleep(time.Duration(attempt) * tiktokRetryDelay)
 	}
 	defer resp.Body.Close()
 

@@ -111,6 +111,47 @@ func TestFetchTikTokOEmbed(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unexpected status code: 404")
 	})
+
+	t.Run("retries overload 503 then succeeds", func(t *testing.T) {
+		calls := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			if calls < 3 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte("overload-protect triggered"))
+				return
+			}
+			_, _ = w.Write([]byte(`{"title": "ok", "author_unique_id": "user123"}`))
+		}))
+		defer server.Close()
+
+		oldBase, oldDelay := tiktokOEmbedBase, tiktokRetryDelay
+		tiktokOEmbedBase, tiktokRetryDelay = server.URL, 0
+		defer func() { tiktokOEmbedBase, tiktokRetryDelay = oldBase, oldDelay }()
+
+		oembed, err := fetchTikTokOEmbed("https://www.tiktok.com/@user123/video/123")
+		require.NoError(t, err)
+		assert.Equal(t, "ok", oembed.Title)
+		assert.Equal(t, 3, calls)
+	})
+
+	t.Run("gives up after max attempts", func(t *testing.T) {
+		calls := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer server.Close()
+
+		oldBase, oldDelay := tiktokOEmbedBase, tiktokRetryDelay
+		tiktokOEmbedBase, tiktokRetryDelay = server.URL, 0
+		defer func() { tiktokOEmbedBase, tiktokRetryDelay = oldBase, oldDelay }()
+
+		_, err := fetchTikTokOEmbed("https://www.tiktok.com/@user123/video/123")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unexpected status code: 503")
+		assert.Equal(t, tiktokOEmbedAttempts, calls)
+	})
 }
 
 func TestBuildTikTokAttachment(t *testing.T) {
