@@ -152,6 +152,79 @@ func TestFetchTikTokOEmbed(t *testing.T) {
 		assert.Contains(t, err.Error(), "unexpected status code: 503")
 		assert.Equal(t, tiktokOEmbedAttempts, calls)
 	})
+
+	t.Run("iframe-only response is an error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"version":"1.0","type":"video","html":"<iframe></iframe>","provider_name":"TikTok"}`))
+		}))
+		defer server.Close()
+
+		oldBase := tiktokOEmbedBase
+		tiktokOEmbedBase = server.URL
+		defer func() { tiktokOEmbedBase = oldBase }()
+
+		_, err := fetchTikTokOEmbed("https://www.tiktok.com/@user123/video/123")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no author data")
+	})
+}
+
+func tiktokPageServer(t *testing.T, state string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<html><head></head><body><script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">` + state + `</script></body></html>`))
+	}))
+}
+
+func TestFetchTikTokPage(t *testing.T) {
+	t.Run("video", func(t *testing.T) {
+		server := tiktokPageServer(t, `{"__DEFAULT_SCOPE__":{"webapp.video-detail":{"statusCode":0,"itemInfo":{"itemStruct":{
+			"desc":"Cool video #fyp",
+			"author":{"uniqueId":"user123","nickname":"Lucky Bii"},
+			"video":{"cover":"https://p16-sign.tiktokcdn.com/cover.jpg"}}}}}}`)
+		defer server.Close()
+
+		data, err := fetchTikTokPage(server.URL)
+		require.NoError(t, err)
+		assert.Equal(t, "Cool video #fyp", data.Title)
+		assert.Equal(t, "Lucky Bii", data.AuthorName)
+		assert.Equal(t, "user123", data.AuthorID)
+		assert.Equal(t, "https://www.tiktok.com/@user123", data.AuthorURL)
+		assert.Equal(t, "https://p16-sign.tiktokcdn.com/cover.jpg", data.ThumbnailURL)
+	})
+
+	t.Run("photo post uses first image", func(t *testing.T) {
+		server := tiktokPageServer(t, `{"__DEFAULT_SCOPE__":{"webapp.video-detail":{"statusCode":0,"itemInfo":{"itemStruct":{
+			"desc":"slides",
+			"author":{"uniqueId":"user123","nickname":"Lucky Bii"},
+			"video":{"cover":""},
+			"imagePost":{"images":[{"imageURL":{"urlList":["https://example.com/1.jpg","https://example.com/1b.jpg"]}}]}}}}}}`)
+		defer server.Close()
+
+		data, err := fetchTikTokPage(server.URL)
+		require.NoError(t, err)
+		assert.Equal(t, "https://example.com/1.jpg", data.ThumbnailURL)
+	})
+
+	t.Run("unavailable video", func(t *testing.T) {
+		server := tiktokPageServer(t, `{"__DEFAULT_SCOPE__":{"webapp.video-detail":{"statusCode":10204,"itemInfo":{}}}}`)
+		defer server.Close()
+
+		_, err := fetchTikTokPage(server.URL)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "status 10204")
+	})
+
+	t.Run("no rehydration script", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`<html>captcha</html>`))
+		}))
+		defer server.Close()
+
+		_, err := fetchTikTokPage(server.URL)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no rehydration data")
+	})
 }
 
 func TestBuildTikTokAttachment(t *testing.T) {

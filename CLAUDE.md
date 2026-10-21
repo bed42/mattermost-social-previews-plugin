@@ -10,7 +10,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 - **Bluesky** - via AT Protocol public API
 - **Twitter/X** - via FxTwitter API
 - **Threads** - via oEmbed
-- **TikTok** - via oEmbed
+- **TikTok** - via video page rehydration JSON (`__UNIVERSAL_DATA_FOR_REHYDRATION__`); oEmbed fallback (TikTok oEmbed stopped returning title/author/thumbnail in Oct 2026)
 - **Instagram** - via oEmbed
 - **Reddit** - via Reddit public JSON API (`/comments/{id}.json?sr_detail=1&raw_json=1`)
 - **Other ActivityPub** (Pleroma/Akkoma/Mangane, GoToSocial, Friendica, Lemmy/PieFed, Misskey fallback) - via ActivityStreams JSON content negotiation (`Accept: application/activity+json`), author fetched from `attributedTo`
@@ -35,7 +35,7 @@ A Mattermost plugin that automatically generates rich previews when users post s
 | `server/bluesky.go` | Bluesky AT Protocol client and attachment builder |
 | `server/twitter.go` | Twitter/X preview via FxTwitter API |
 | `server/threads.go` | Threads preview via oEmbed |
-| `server/tiktok.go` | TikTok preview via oEmbed |
+| `server/tiktok.go` | TikTok preview via video page JSON, oEmbed fallback |
 | `server/instagram.go` | Instagram preview via oEmbed |
 | `server/reddit.go` | Reddit preview via public JSON API; subreddit icon, score, comment count |
 | `server/activitypub.go` | Generic ActivityPub object/actor fetch + attachment builder; also fallback when Mastodon API fails |

@@ -96,6 +96,113 @@ var (
 	tiktokRetryDelay     = 300 * time.Millisecond
 )
 
+// fetchTikTok fetches preview data for a TikTok URL. TikTok's oEmbed endpoint
+// now returns only an iframe (no title, author or thumbnail), so the video page's
+// embedded rehydration JSON is the primary source, with oEmbed as a fallback.
+func fetchTikTok(rawURL string) (*TikTokOEmbed, error) {
+	data, pageErr := fetchTikTokPage(rawURL)
+	if pageErr == nil {
+		return data, nil
+	}
+
+	data, err := fetchTikTokOEmbed(rawURL)
+	if err != nil {
+		// Direct oEmbed failed — try resolving redirects and normalizing /photo/ to /video/
+		resolvedURL, resolveErr := resolveTikTokForOEmbed(rawURL)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("page: %v; oEmbed: %w", pageErr, resolveErr)
+		}
+		data, err = fetchTikTokOEmbed(resolvedURL)
+		if err != nil {
+			return nil, fmt.Errorf("page: %v; oEmbed: %w", pageErr, err)
+		}
+	}
+	return data, nil
+}
+
+// tiktokRehydrationPattern extracts the JSON state TikTok embeds in video pages.
+var tiktokRehydrationPattern = regexp.MustCompile(`(?s)<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>`)
+
+// tiktokRehydration holds the parts of a video page's rehydration JSON we use.
+type tiktokRehydration struct {
+	DefaultScope struct {
+		VideoDetail struct {
+			StatusCode int `json:"statusCode"`
+			ItemInfo   struct {
+				ItemStruct struct {
+					Desc   string `json:"desc"`
+					Author struct {
+						UniqueID string `json:"uniqueId"`
+						Nickname string `json:"nickname"`
+					} `json:"author"`
+					Video struct {
+						Cover string `json:"cover"`
+					} `json:"video"`
+					ImagePost struct {
+						Images []struct {
+							ImageURL struct {
+								URLList []string `json:"urlList"`
+							} `json:"imageURL"`
+						} `json:"images"`
+					} `json:"imagePost"`
+				} `json:"itemStruct"`
+			} `json:"itemInfo"`
+		} `json:"webapp.video-detail"`
+	} `json:"__DEFAULT_SCOPE__"`
+}
+
+// fetchTikTokPage fetches a TikTok video or photo page (following short-link
+// redirects) and extracts preview data from its embedded rehydration JSON.
+func fetchTikTokPage(rawURL string) (*TikTokOEmbed, error) {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch TikTok page: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	m := tiktokRehydrationPattern.FindSubmatch(body)
+	if m == nil {
+		return nil, fmt.Errorf("no rehydration data in TikTok page")
+	}
+
+	var state tiktokRehydration
+	if err := json.Unmarshal(m[1], &state); err != nil {
+		return nil, fmt.Errorf("failed to parse rehydration data: %w", err)
+	}
+
+	detail := state.DefaultScope.VideoDetail
+	item := detail.ItemInfo.ItemStruct
+	if detail.StatusCode != 0 || item.Author.UniqueID == "" {
+		return nil, fmt.Errorf("TikTok page has no video data (status %d)", detail.StatusCode)
+	}
+
+	data := &TikTokOEmbed{
+		Title:        item.Desc,
+		AuthorName:   item.Author.Nickname,
+		AuthorURL:    "https://www.tiktok.com/@" + item.Author.UniqueID,
+		AuthorID:     item.Author.UniqueID,
+		ThumbnailURL: item.Video.Cover,
+	}
+	if images := item.ImagePost.Images; len(images) > 0 && len(images[0].ImageURL.URLList) > 0 {
+		data.ThumbnailURL = images[0].ImageURL.URLList[0]
+	}
+
+	return data, nil
+}
+
 // fetchTikTokOEmbed fetches oEmbed data for a TikTok video URL.
 func fetchTikTokOEmbed(videoURL string) (*TikTokOEmbed, error) {
 	client := &http.Client{
@@ -132,6 +239,10 @@ func fetchTikTokOEmbed(videoURL string) (*TikTokOEmbed, error) {
 	var oembed TikTokOEmbed
 	if err := json.Unmarshal(body, &oembed); err != nil {
 		return nil, fmt.Errorf("failed to parse oEmbed response: %w", err)
+	}
+
+	if oembed.AuthorID == "" {
+		return nil, fmt.Errorf("oEmbed response has no author data")
 	}
 
 	return &oembed, nil
