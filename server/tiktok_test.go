@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -204,6 +205,51 @@ func TestFetchTikTokPage(t *testing.T) {
 		data, err := fetchTikTokPage(server.URL)
 		require.NoError(t, err)
 		assert.Equal(t, "https://example.com/1.jpg", data.ThumbnailURL)
+	})
+
+	// Photo pages lack webapp.video-detail; the same ID under /video/ has it.
+	photoMux := func(hits *[]string) *httptest.Server {
+		var server *httptest.Server
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			*hits = append(*hits, r.URL.String())
+			switch {
+			case r.URL.Path == "/ZSshort/":
+				http.Redirect(w, r, server.URL+"/@user123/photo/7712206707547507989?_r=1&_t=abc", http.StatusFound)
+			case strings.Contains(r.URL.Path, "/photo/"):
+				_, _ = w.Write([]byte(`<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">{"__DEFAULT_SCOPE__":{"webapp.app-context":{}}}</script>`))
+			case r.URL.Path == "/@user123/video/7712206707547507989" && r.URL.RawQuery == "":
+				_, _ = w.Write([]byte(`<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">{"__DEFAULT_SCOPE__":{"webapp.video-detail":{"statusCode":0,"itemInfo":{"itemStruct":{
+					"desc":"photo desc","author":{"uniqueId":"user123","nickname":"Lucky Bii"},"video":{"cover":"https://example.com/cover.jpg"},
+					"imagePost":{"images":[{"imageURL":{"urlList":["https://example.com/1.jpg"]}}]}}}}}}</script>`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		return server
+	}
+
+	t.Run("direct photo URL fetched as video", func(t *testing.T) {
+		var hits []string
+		server := photoMux(&hits)
+		defer server.Close()
+
+		data, err := fetchTikTokPage(server.URL + "/@user123/photo/7712206707547507989?_r=1")
+		require.NoError(t, err)
+		assert.Equal(t, "photo desc", data.Title)
+		assert.Equal(t, "https://example.com/1.jpg", data.ThumbnailURL)
+		assert.Equal(t, []string{"/@user123/video/7712206707547507989"}, hits)
+	})
+
+	t.Run("short link redirecting to photo refetched as video", func(t *testing.T) {
+		var hits []string
+		server := photoMux(&hits)
+		defer server.Close()
+
+		data, err := fetchTikTokPage(server.URL + "/ZSshort/")
+		require.NoError(t, err)
+		assert.Equal(t, "user123", data.AuthorID)
+		assert.Equal(t, "https://example.com/1.jpg", data.ThumbnailURL)
+		assert.Len(t, hits, 3)
 	})
 
 	t.Run("unavailable video", func(t *testing.T) {

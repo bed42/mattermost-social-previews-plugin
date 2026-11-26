@@ -151,27 +151,74 @@ type tiktokRehydration struct {
 	} `json:"__DEFAULT_SCOPE__"`
 }
 
+// tiktokPhotoToVideoURL rewrites a /photo/ URL to its /video/ form without
+// query or fragment. ok is false if the URL is not a photo URL.
+func tiktokPhotoToVideoURL(u *url.URL) (string, bool) {
+	if !tiktokPhotoPattern.MatchString(u.Path) {
+		return "", false
+	}
+	v := *u
+	v.Path = tiktokPhotoPattern.ReplaceAllString(u.Path, "/video/$2")
+	v.RawQuery = ""
+	v.Fragment = ""
+	return v.String(), true
+}
+
 // fetchTikTokPage fetches a TikTok video or photo page (following short-link
 // redirects) and extracts preview data from its embedded rehydration JSON.
+// Photo pages don't include webapp.video-detail, but the same ID under /video/
+// does (with imagePost populated), so photo URLs — direct or reached via a
+// short-link redirect — are fetched in their /video/ form.
 func fetchTikTokPage(rawURL string) (*TikTokOEmbed, error) {
+	if u, err := url.Parse(rawURL); err == nil {
+		if videoURL, ok := tiktokPhotoToVideoURL(u); ok {
+			rawURL = videoURL
+		}
+	}
+
+	body, finalURL, err := getTikTokPage(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := parseTikTokPage(body)
+	if err != nil {
+		if videoURL, ok := tiktokPhotoToVideoURL(finalURL); ok {
+			if body, _, err2 := getTikTokPage(videoURL); err2 == nil {
+				return parseTikTokPage(body)
+			}
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
+// getTikTokPage fetches a TikTok page and returns its body and the URL it
+// ended up at after redirects.
+func getTikTokPage(rawURL string) ([]byte, *url.URL, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
 	resp, err := client.Get(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch TikTok page: %w", err)
+		return nil, nil, fmt.Errorf("failed to fetch TikTok page: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		return nil, nil, fmt.Errorf("failed to read response: %w", err)
 	}
+	return body, resp.Request.URL, nil
+}
+
+// parseTikTokPage extracts preview data from a TikTok page's rehydration JSON.
+func parseTikTokPage(body []byte) (*TikTokOEmbed, error) {
 
 	m := tiktokRehydrationPattern.FindSubmatch(body)
 	if m == nil {
